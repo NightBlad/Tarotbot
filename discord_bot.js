@@ -14,12 +14,29 @@ const {
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TAROT_API_URL = process.env.TAROT_API_URL || 'http://localhost:3000';
 const GUILD_ID = process.env.GUILD_ID || null;
-// LangFlow configuration: only a full run URL is read from environment via LANGFLOW_API_KEY
-// Example: https://xxxx.ngrok-free.app/api/v1/run/<flow-id>  OR a template containing {flow}
-const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // must be a URL (http/https)
-const LANGFLOW_API_TOKEN = process.env.LANGFLOW_API_TOKEN || null; // optional separate token
+// LangFlow configuration: full run URL and API key token are read from environment
+// Example URL: https://xxxx.ngrok-free.app/api/v1/run/<flow-id>  OR a template containing {flow}
+const LANGFLOW_API_URL = process.env.LANGFLOW_API_URL || null; // must be a URL (http/https)
+const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // optional token / api key
 const LANGFLOW_AUTH_HEADER = process.env.LANGFLOW_AUTH_HEADER || 'Authorization';
 const LANGFLOW_DEBUG = process.env.LANGFLOW_DEBUG ? process.env.LANGFLOW_DEBUG === 'true' : true; // debug enabled by default
+
+// Log resolved environment configuration (masked) when debugging is enabled
+if (LANGFLOW_DEBUG) {
+  try {
+    console.log('Resolved env: ', {
+      DISCORD_TOKEN: maskToken(DISCORD_TOKEN),
+      TAROT_API_URL,
+      LANGFLOW_API_URL: maskUrl(LANGFLOW_API_URL),
+      LANGFLOW_AUTH_HEADER,
+      LANGFLOW_API_KEY: maskToken(LANGFLOW_API_KEY),
+      LANGFLOW_DEBUG
+    });
+  } catch (e) {
+    // non-fatal logging error
+    console.warn('Failed to log env debug info', e && e.message ? e.message : e);
+  }
+}
 
 function maskToken(t) {
   if (!t) return null;
@@ -36,12 +53,14 @@ function maskUrl(u) {
 
 async function safeDeferReply(interaction, opts) {
   try {
-    if (interaction.deferred || interaction.replied) return true;
-    await interaction.deferReply(opts);
+    if (interaction.deferred || interaction.replied || interaction.acknowledged) return true;
+    const deferOpts = Object.assign({}, opts || {});
+    if (deferOpts.ephemeral) { deferOpts.flags = 64; delete deferOpts.ephemeral; }
+    await interaction.deferReply(deferOpts);
     return true;
   } catch (e) {
     console.warn('deferReply failed:', e && e.message ? e.message : e);
-    try { await interaction.reply({ content: 'Interaction expired or cannot be deferred. Please try again.', ephemeral: true }); } catch (_) {}
+    try { await interaction.reply({ content: 'Interaction expired or cannot be deferred. Please try again.', flags: 64 }); } catch (_) {}
     return false;
   }
 }
@@ -50,13 +69,15 @@ async function safeEditReply(interaction, payload) {
   try {
     if (!interaction.deferred && !interaction.replied) {
       // Not deferred/replied - reply instead
-      await interaction.reply(Object.assign({}, payload, { ephemeral: payload.ephemeral || false }));
+      const rp = Object.assign({}, payload);
+      if (rp.ephemeral) { rp.flags = 64; delete rp.ephemeral; }
+      await interaction.reply(rp);
       return;
     }
     await interaction.editReply(payload);
   } catch (e) {
     console.warn('editReply failed:', e && e.message ? e.message : e);
-    try { if (!interaction.replied) await interaction.reply({ content: 'Could not send reply.', ephemeral: true }); } catch (_) {}
+    try { if (!interaction.replied) await interaction.reply({ content: 'Could not send reply.', flags: 64 }); } catch (_) {}
   }
 }
 
@@ -131,20 +152,18 @@ async function callLangFlow(flow, input) {
   };
   try { payload.session_id = crypto.randomUUID(); } catch (_) { /* ignore if unavailable */ }
 
-  // Build run URL using LANGFLOW_BASE_URL and the flow id
-  // Determine runUrl and headers. LANGFLOW_API_KEY can be either:
-  // - A full URL (starting with http/https) which may contain {flow} or may already include a flow id.
-  // - A bearer token (no http) in which case we POST to the local LANGFLOW_BASE_URL and send Authorization header.
+  // Build run URL using the LANGFLOW_API_URL and the flow id
+  // LANGFLOW_API_URL must be a URL (http/https). It may optionally include a token separated by a pipe: URL|TOKEN
   let runUrl = null;
   const headers = { 'Content-Type': 'application/json' };
-  const apiKeyRaw = String(LANGFLOW_API_KEY || '').trim();
-  if (!apiKeyRaw) throw new Error('LANGFLOW_API_KEY is not set; set it to a full LangFlow run URL (e.g. https://host/api/v1/run/{flow})');
-  if (apiKeyRaw.toLowerCase().startsWith('http')) {
-    // LANGFLOW_API_KEY may be a URL or a URL|TOKEN pair. Support both formats.
-    let urlPart = apiKeyRaw;
+  const apiUrlRaw = String(LANGFLOW_API_URL || '').trim();
+  if (!apiUrlRaw) throw new Error('LANGFLOW_API_URL is not set; set it to a full LangFlow run URL (e.g. https://host/api/v1/run/{flow})');
+  if (apiUrlRaw.toLowerCase().startsWith('http')) {
+    // LANGFLOW_API_URL may be a URL or a URL|TOKEN pair. Support both formats.
+    let urlPart = apiUrlRaw;
     let tokenPart = null;
-    if (apiKeyRaw.includes('|')) {
-      const parts = apiKeyRaw.split('|').map(p => p.trim()).filter(Boolean);
+    if (apiUrlRaw.includes('|')) {
+      const parts = apiUrlRaw.split('|').map(p => p.trim()).filter(Boolean);
       // prefer the part that starts with http as the URL
       urlPart = parts.find(p => p.toLowerCase().startsWith('http')) || parts[0];
       tokenPart = parts.find(p => !p.toLowerCase().startsWith('http')) || null;
@@ -162,10 +181,21 @@ async function callLangFlow(flow, input) {
       runUrl = `${cleaned}/api/v1/run/${encodeURIComponent(flow)}`;
     }
 
-  // If tokenPart was provided (format URL|TOKEN), send it as a Bearer token.
-  // If LANGFLOW_API_TOKEN is present, prefer that explicit token.
-  const effectiveToken = (LANGFLOW_API_TOKEN && String(LANGFLOW_API_TOKEN).trim()) ? String(LANGFLOW_API_TOKEN).trim() : (tokenPart || null);
-  if (effectiveToken) headers['Authorization'] = `Bearer ${effectiveToken}`;
+  // If tokenPart was provided (format URL|TOKEN), send it as a header.
+  // If LANGFLOW_API_KEY is present, prefer that explicit token.
+  const effectiveToken = (LANGFLOW_API_KEY && String(LANGFLOW_API_KEY).trim()) ? String(LANGFLOW_API_KEY).trim() : (tokenPart || null);
+  if (effectiveToken) {
+    const headerName = LANGFLOW_AUTH_HEADER || 'Authorization';
+    const tokenVal = String(effectiveToken);
+    // For the conventional Authorization header, ensure a Bearer prefix is present
+    if (headerName.toLowerCase() === 'authorization') {
+      headers[headerName] = /^Bearer\s+/i.test(tokenVal) ? tokenVal : `Bearer ${tokenVal}`;
+    } else {
+      // For custom headers (e.g., X-API-Key), send the raw token value
+      headers[headerName] = tokenVal;
+    }
+    if (LANGFLOW_DEBUG) console.log('LangFlow auth:', maskUrl(runUrl), headerName + ':', maskToken(tokenVal));
+  }
   } else {
     // We no longer support using a bare bearer token without a run URL.
     throw new Error('LANGFLOW_API_KEY must be a full run URL (starting with http/https), or a URL and token separated by a pipe (URL|TOKEN).');
@@ -212,12 +242,12 @@ function buildCommandsDefinition() {
 }
 
 function registerEventHandlers(botClient) {
-  botClient.on('ready', () => {
+  botClient.on('clientReady', () => {
     console.log(`Discord bot ready as ${botClient.user && botClient.user.tag}`);
   });
 
   // Register slash commands
-  botClient.on('ready', async () => {
+  botClient.on('clientReady', async () => {
     try {
       const commands = buildCommandsDefinition();
 
@@ -244,7 +274,7 @@ function registerEventHandlers(botClient) {
         }
       }
     } catch (e) {
-      console.warn('Could not register slash commands during ready:', e && e.message);
+      console.warn('Could not register slash commands during clientReady:', e && e.message);
     }
   });
 
@@ -282,7 +312,7 @@ function registerEventHandlers(botClient) {
             await interaction.update({ embeds: [embed], components: [row1b, row2b] });
           } catch (e) {
             console.error('Regenerate failed', e);
-            try { await interaction.followUp({ content: `Error: ${e.message}`, ephemeral: true }); } catch (_) {}
+            try { await safeEditReply(interaction, { content: `Error: ${e.message}` }); } catch (_) {}
           }
           return;
         }
@@ -308,9 +338,9 @@ function registerEventHandlers(botClient) {
         if (id.startsWith('cardselect:')) {
           const apiPath = id.slice('cardselect:'.length);
           const val = interaction.values && interaction.values[0];
-          if (typeof val === 'undefined') { await interaction.reply({ content: 'No card selected', ephemeral: true }); return; }
+          if (typeof val === 'undefined') { await safeEditReply(interaction, { content: 'No card selected' }); return; }
           const idx = parseInt(val, 10);
-          await interaction.deferReply({ ephemeral: true });
+          if (!await safeDeferReply(interaction, { ephemeral: true })) return;
           try {
             const data = await callApi(apiPath);
             const item = (Array.isArray(data) && data[idx]) ? data[idx] : null;
@@ -373,7 +403,7 @@ function registerEventHandlers(botClient) {
             break;
           }
           default:
-            await interaction.reply({ content: `Unknown subcommand: ${sub}`, ephemeral: true });
+            await safeEditReply(interaction, { content: `Unknown subcommand: ${sub}` });
             return;
         }
 
@@ -383,12 +413,6 @@ function registerEventHandlers(botClient) {
 
         // Prepare flow id and fetch structured tarot data first
         const flowToUse = (sub === 'flow') ? (interaction.options.getString('flow_id') || sub) : sub;
-
-        // Ensure LANGFLOW_API_KEY is configured and is a URL
-        if (!LANGFLOW_API_KEY || !String(LANGFLOW_API_KEY).toLowerCase().startsWith('http')) {
-          await safeEditReply(interaction, { content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_KEY to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
-          return;
-        }
 
         // Call local tarot API to get structured spread data
         if (!await safeDeferReply(interaction)) return;
