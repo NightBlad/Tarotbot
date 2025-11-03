@@ -17,6 +17,7 @@ const GUILD_ID = process.env.GUILD_ID || null;
 // LangFlow configuration: only a full run URL is read from environment via LANGFLOW_API_KEY
 // Example: https://xxxx.ngrok-free.app/api/v1/run/<flow-id>  OR a template containing {flow}
 const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // must be a URL (http/https)
+const LANGFLOW_API_TOKEN = process.env.LANGFLOW_API_TOKEN || null; // optional separate token
 
 // Load card data for autocomplete suggestions (name and short name)
 let CARDS = [];
@@ -97,8 +98,17 @@ async function callLangFlow(flow, input) {
   const apiKeyRaw = String(LANGFLOW_API_KEY || '').trim();
   if (!apiKeyRaw) throw new Error('LANGFLOW_API_KEY is not set; set it to a full LangFlow run URL (e.g. https://host/api/v1/run/{flow})');
   if (apiKeyRaw.toLowerCase().startsWith('http')) {
-    // Use the provided URL as template or direct run URL
-    const cleaned = apiKeyRaw.replace(/\/$/, '');
+    // LANGFLOW_API_KEY may be a URL or a URL|TOKEN pair. Support both formats.
+    let urlPart = apiKeyRaw;
+    let tokenPart = null;
+    if (apiKeyRaw.includes('|')) {
+      const parts = apiKeyRaw.split('|').map(p => p.trim()).filter(Boolean);
+      // prefer the part that starts with http as the URL
+      urlPart = parts.find(p => p.toLowerCase().startsWith('http')) || parts[0];
+      tokenPart = parts.find(p => !p.toLowerCase().startsWith('http')) || null;
+    }
+
+    const cleaned = String(urlPart).replace(/\/$/, '');
     if (cleaned.includes('{flow}')) {
       runUrl = cleaned.replace('{flow}', encodeURIComponent(flow));
     } else if (cleaned.includes('/api/v1/run')) {
@@ -109,10 +119,14 @@ async function callLangFlow(flow, input) {
       // Assume it's a base host
       runUrl = `${cleaned}/api/v1/run/${encodeURIComponent(flow)}`;
     }
-    // Don't set Authorization header when API key is actually a URL
+
+  // If tokenPart was provided (format URL|TOKEN), send it as a Bearer token.
+  // If LANGFLOW_API_TOKEN is present, prefer that explicit token.
+  const effectiveToken = (LANGFLOW_API_TOKEN && String(LANGFLOW_API_TOKEN).trim()) ? String(LANGFLOW_API_TOKEN).trim() : (tokenPart || null);
+  if (effectiveToken) headers['Authorization'] = `Bearer ${effectiveToken}`;
   } else {
     // We no longer support using a bare bearer token without a run URL.
-    throw new Error('LANGFLOW_API_KEY must be a full run URL (starting with http/https).');
+    throw new Error('LANGFLOW_API_KEY must be a full run URL (starting with http/https), or a URL and token separated by a pipe (URL|TOKEN).');
   }
 
   const res = await fetch(runUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
