@@ -1,0 +1,19 @@
+{
+  "name": "tarotbot",
+  "version": "1.0.0",
+  "description": "Tarot spread API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "bot": "node discord_bot.js",
+  "start:app": "node app.js",
+  "start:supervised": "node supervisor.js",
+    "test": "node test_tarot_api.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "discord.js": "^14.13.0",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.7"
+  }
+}
