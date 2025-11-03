@@ -63,7 +63,7 @@ async function safeEditReply(interaction, payload) {
 // Load card data for autocomplete suggestions (name and short name)
 let CARDS = [];
 try {
-  CARDS = require('./card_data.js');
+  CARDS = require('./card_data');
 } catch (e) {
   console.warn('Could not load card_data.js for autocomplete:', e.message);
 }
@@ -77,6 +77,7 @@ function createClient(includeMessageContent) {
 }
 
 const client = createClient(false);
+const { callTarotApi } = require('./tarot_client');
 
 async function callApi(path) {
   const url = `${TAROT_API_URL}${path}`;
@@ -380,20 +381,32 @@ function registerEventHandlers(botClient) {
         const question = interaction.options.getString('question') || '';
         if (question) apiPath += (apiPath.includes('?') ? '&' : '?') + `q=${encodeURIComponent(question)}`;
 
-        // Prepare the text input for LangFlow: include spread type and the api path
-        // For the special 'flow' subcommand we expect the user to provide a flow_id option.
+        // Prepare flow id and fetch structured tarot data first
         const flowToUse = (sub === 'flow') ? (interaction.options.getString('flow_id') || sub) : sub;
-        const inputText = `Spread: ${sub}\nAPI: ${apiPath}${question ? `\nQuestion: ${question}` : ''}`;
 
         // Ensure LANGFLOW_API_KEY is configured and is a URL
         if (!LANGFLOW_API_KEY || !String(LANGFLOW_API_KEY).toLowerCase().startsWith('http')) {
-          await interaction.reply({ content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_KEY to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
+          await safeEditReply(interaction, { content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_KEY to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
           return;
         }
 
-        await interaction.deferReply();
+        // Call local tarot API to get structured spread data
+        if (!await safeDeferReply(interaction)) return;
         try {
-          const lfOut = await callLangFlow(flowToUse, inputText);
+          const tarotResp = await callTarotApi({ spread: sub, n: interaction.options.getInteger('n'), sig: interaction.options.getString('sig'), extraQuestions: null, question });
+
+          // Build the input object to send to LangFlow: include spread metadata and the full tarot response
+          const lfInput = {
+            spread: sub,
+            apiPath,
+            question: question || '',
+            tarot: tarotResp
+          };
+
+          if (LANGFLOW_DEBUG) console.log('Calling LangFlow with flow=', flowToUse, 'input keys=', Object.keys(lfInput));
+
+          const lfOut = await callLangFlow(flowToUse, lfInput);
+
           let desc = '';
           if (lfOut == null) {
             desc = '(no output)';
@@ -405,10 +418,10 @@ function registerEventHandlers(botClient) {
           desc = desc.substring(0, 4000);
           const embed = new EmbedBuilder().setTitle(`LangFlow — ${flowToUse}`).setDescription(desc).setTimestamp();
           if (question) embed.setFooter({ text: `Query: ${question}` });
-          await interaction.editReply({ embeds: [embed] });
+          await safeEditReply(interaction, { embeds: [embed] });
         } catch (err) {
-          console.error('LangFlow invocation error', err);
-          try { await interaction.editReply({ content: `Error running LangFlow: ${err.message}` }); } catch (_) {}
+          console.error('Tarot or LangFlow invocation error', err);
+          try { await safeEditReply(interaction, { content: `Error: ${err.message}` }); } catch (_) {}
         }
       }
     } catch (e) {
