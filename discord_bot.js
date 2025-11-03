@@ -14,9 +14,9 @@ const {
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
 const TAROT_API_URL = process.env.TAROT_API_URL || 'http://localhost:3000';
 const GUILD_ID = process.env.GUILD_ID || null;
-// LangFlow configuration: only an API key is read from environment; host is fixed to localhost
-const LANGFLOW_BASE_URL = 'http://localhost:7860';
-const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // optional API key for LangFlow
+// LangFlow configuration: only a full run URL is read from environment via LANGFLOW_API_KEY
+// Example: https://xxxx.ngrok-free.app/api/v1/run/<flow-id>  OR a template containing {flow}
+const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // must be a URL (http/https)
 
 // Load card data for autocomplete suggestions (name and short name)
 let CARDS = [];
@@ -89,11 +89,31 @@ async function callLangFlow(flow, input) {
   try { payload.session_id = crypto.randomUUID(); } catch (_) { /* ignore if unavailable */ }
 
   // Build run URL using LANGFLOW_BASE_URL and the flow id
-  const host = String(LANGFLOW_BASE_URL).replace(/\/$/, '');
-  const runUrl = `${host}/api/v1/run/${encodeURIComponent(flow)}`;
-
+  // Determine runUrl and headers. LANGFLOW_API_KEY can be either:
+  // - A full URL (starting with http/https) which may contain {flow} or may already include a flow id.
+  // - A bearer token (no http) in which case we POST to the local LANGFLOW_BASE_URL and send Authorization header.
+  let runUrl = null;
   const headers = { 'Content-Type': 'application/json' };
-  if (LANGFLOW_API_KEY) headers['Authorization'] = `Bearer ${LANGFLOW_API_KEY}`;
+  const apiKeyRaw = String(LANGFLOW_API_KEY || '').trim();
+  if (!apiKeyRaw) throw new Error('LANGFLOW_API_KEY is not set; set it to a full LangFlow run URL (e.g. https://host/api/v1/run/{flow})');
+  if (apiKeyRaw.toLowerCase().startsWith('http')) {
+    // Use the provided URL as template or direct run URL
+    const cleaned = apiKeyRaw.replace(/\/$/, '');
+    if (cleaned.includes('{flow}')) {
+      runUrl = cleaned.replace('{flow}', encodeURIComponent(flow));
+    } else if (cleaned.includes('/api/v1/run')) {
+      // If the URL ends with /api/v1/run, append flow; if it already has a trailing segment, assume it's a full run URL
+      if (cleaned.endsWith('/api/v1/run')) runUrl = `${cleaned}/${encodeURIComponent(flow)}`;
+      else runUrl = cleaned; // likely already contains the flow id
+    } else {
+      // Assume it's a base host
+      runUrl = `${cleaned}/api/v1/run/${encodeURIComponent(flow)}`;
+    }
+    // Don't set Authorization header when API key is actually a URL
+  } else {
+    // We no longer support using a bare bearer token without a run URL.
+    throw new Error('LANGFLOW_API_KEY must be a full run URL (starting with http/https).');
+  }
 
   const res = await fetch(runUrl, { method: 'POST', headers, body: JSON.stringify(payload) });
   if (!res.ok) throw new Error(`LangFlow ${res.status} ${res.statusText}`);
@@ -309,6 +329,12 @@ function registerEventHandlers(botClient) {
         // For the special 'flow' subcommand we expect the user to provide a flow_id option.
         const flowToUse = (sub === 'flow') ? (interaction.options.getString('flow_id') || sub) : sub;
         const inputText = `Spread: ${sub}\nAPI: ${apiPath}${question ? `\nQuestion: ${question}` : ''}`;
+
+        // Ensure LANGFLOW_API_KEY is configured and is a URL
+        if (!LANGFLOW_API_KEY || !String(LANGFLOW_API_KEY).toLowerCase().startsWith('http')) {
+          await interaction.reply({ content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_KEY to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
+          return;
+        }
 
         await interaction.deferReply();
         try {
