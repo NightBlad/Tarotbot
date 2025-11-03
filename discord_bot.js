@@ -18,6 +18,47 @@ const GUILD_ID = process.env.GUILD_ID || null;
 // Example: https://xxxx.ngrok-free.app/api/v1/run/<flow-id>  OR a template containing {flow}
 const LANGFLOW_API_KEY = process.env.LANGFLOW_API_KEY || null; // must be a URL (http/https)
 const LANGFLOW_API_TOKEN = process.env.LANGFLOW_API_TOKEN || null; // optional separate token
+const LANGFLOW_AUTH_HEADER = process.env.LANGFLOW_AUTH_HEADER || 'Authorization';
+const LANGFLOW_DEBUG = process.env.LANGFLOW_DEBUG ? process.env.LANGFLOW_DEBUG === 'true' : true; // debug enabled by default
+
+function maskToken(t) {
+  if (!t) return null;
+  if (t.length <= 8) return '****';
+  return `${t.slice(0,4)}...${t.slice(-4)}`;
+}
+
+function maskUrl(u) {
+  try {
+    const url = new URL(u);
+    return `${url.protocol}//${url.host}${url.pathname}${url.search ? '...' : ''}`;
+  } catch (_) { return u && u.length > 40 ? u.slice(0,40) + '...' : u; }
+}
+
+async function safeDeferReply(interaction, opts) {
+  try {
+    if (interaction.deferred || interaction.replied) return true;
+    await interaction.deferReply(opts);
+    return true;
+  } catch (e) {
+    console.warn('deferReply failed:', e && e.message ? e.message : e);
+    try { await interaction.reply({ content: 'Interaction expired or cannot be deferred. Please try again.', ephemeral: true }); } catch (_) {}
+    return false;
+  }
+}
+
+async function safeEditReply(interaction, payload) {
+  try {
+    if (!interaction.deferred && !interaction.replied) {
+      // Not deferred/replied - reply instead
+      await interaction.reply(Object.assign({}, payload, { ephemeral: payload.ephemeral || false }));
+      return;
+    }
+    await interaction.editReply(payload);
+  } catch (e) {
+    console.warn('editReply failed:', e && e.message ? e.message : e);
+    try { if (!interaction.replied) await interaction.reply({ content: 'Could not send reply.', ephemeral: true }); } catch (_) {}
+  }
+}
 
 // Load card data for autocomplete suggestions (name and short name)
 let CARDS = [];
@@ -247,15 +288,15 @@ function registerEventHandlers(botClient) {
 
         if (id.startsWith('showimages:')) {
           const apiPath = id.slice('showimages:'.length);
-          await interaction.deferReply({ ephemeral: true });
-          try {
-            const data = await callApi(apiPath);
-            const imgs = (Array.isArray(data) ? data : []).map(it => (it.card && it.card.imagePath) ? `${TAROT_API_URL}/${it.card.imagePath.replace(/^\.\//, '')}` : null).filter(Boolean);
-            await interaction.editReply({ content: imgs.length ? imgs.join('\n') : 'No images available for this spread.' });
-          } catch (e) {
-            console.error('Show images failed', e);
-            try { await interaction.editReply({ content: `Error: ${e.message}` }); } catch (_) {}
-          }
+            if (!await safeDeferReply(interaction, { ephemeral: true })) return;
+            try {
+              const data = await callApi(apiPath);
+              const imgs = (Array.isArray(data) ? data : []).map(it => (it.card && it.card.imagePath) ? `${TAROT_API_URL}/${it.card.imagePath.replace(/^\.\//, '')}` : null).filter(Boolean);
+              await safeEditReply(interaction, { content: imgs.length ? imgs.join('\n') : 'No images available for this spread.' });
+            } catch (e) {
+              console.error('Show images failed', e);
+              try { await safeEditReply(interaction, { content: `Error: ${e.message}` }); } catch (_) {}
+            }
           return;
         }
       }
