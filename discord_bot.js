@@ -714,12 +714,32 @@ function registerEventHandlers(botClient) {
           let conclusion = '';
           
           let currentSection = '';
+          let inConclusionBlock = false;
+          
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
             
             // First line is usually the title
             if (i === 0 && line.length < 100) {
               title = line;
+              continue;
+            }
+            
+            // Detect conclusion section (case insensitive)
+            if (line.toLowerCase().includes('kết luận')) {
+              currentSection = 'conclusion';
+              inConclusionBlock = true;
+              // If the line has content after "Kết luận:", include it
+              const conclusionMatch = line.match(/kết luận[:\s]*(.*)/i);
+              if (conclusionMatch && conclusionMatch[1]) {
+                conclusion += conclusionMatch[1] + '\n';
+              }
+              continue;
+            }
+            
+            // If we're in conclusion block, keep adding lines
+            if (inConclusionBlock) {
+              conclusion += line + '\n';
               continue;
             }
             
@@ -740,12 +760,6 @@ function registerEventHandlers(botClient) {
               continue;
             }
             
-            // Detect conclusion section
-            if (line.toLowerCase().startsWith('kết luận')) {
-              currentSection = 'conclusion';
-              continue;
-            }
-            
             // Detect advice section with colon
             if (line.toLowerCase().startsWith('lời khuyên') && line.includes(':')) {
               const colonIdx = line.indexOf(':');
@@ -760,10 +774,8 @@ function registerEventHandlers(botClient) {
               continue;
             }
             
-            // Build description or conclusion
-            if (currentSection === 'conclusion') {
-              conclusion += line + '\n';
-            } else if (!line.toLowerCase().startsWith('trải bài') && description.length < 2000) {
+            // Build description (only if not in conclusion and not a card line)
+            if (!line.toLowerCase().startsWith('trải bài') && description.length < 2000) {
               description += line + '\n';
             }
           }
@@ -850,17 +862,62 @@ function registerEventHandlers(botClient) {
           
           // Add conclusion as a field if present and size allows
           if (conclusion.trim() && fieldCount < 25) {
-            const conclusionText = conclusion.trim().substring(0, 1024);
-            const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
+            const conclusionText = conclusion.trim();
             
-            if (currentSize + conclusionSize <= maxEmbedSize && conclusionText) {
-              embed.addFields({
-                name: '🔮 Kết luận',
-                value: conclusionText,
-                inline: false
-              });
-              currentSize += conclusionSize;
-              fieldCount++;
+            // If conclusion is long, split into multiple fields
+            if (conclusionText.length > 1024) {
+              // Split by paragraphs
+              const paragraphs = conclusionText.split('\n\n');
+              let currentChunk = '';
+              let chunkIndex = 1;
+              
+              for (const para of paragraphs) {
+                // If adding this paragraph would exceed 1024, save current chunk and start new
+                if (currentChunk.length + para.length + 2 > 1024 && currentChunk.length > 0) {
+                  const chunkSize = `🔮 Kết luận (${chunkIndex})`.length + currentChunk.length;
+                  if (currentSize + chunkSize <= maxEmbedSize && fieldCount < 25) {
+                    embed.addFields({
+                      name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
+                      value: currentChunk,
+                      inline: false
+                    });
+                    currentSize += chunkSize;
+                    fieldCount++;
+                    chunkIndex++;
+                    currentChunk = '';
+                  } else {
+                    break; // No more room
+                  }
+                }
+                
+                currentChunk += (currentChunk ? '\n\n' : '') + para;
+              }
+              
+              // Add remaining chunk
+              if (currentChunk && fieldCount < 25) {
+                const chunkSize = `🔮 Kết luận (${chunkIndex})`.length + currentChunk.length;
+                if (currentSize + chunkSize <= maxEmbedSize) {
+                  embed.addFields({
+                    name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
+                    value: currentChunk.substring(0, 1024),
+                    inline: false
+                  });
+                  currentSize += chunkSize;
+                  fieldCount++;
+                }
+              }
+            } else {
+              // Short conclusion, add as single field
+              const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
+              if (currentSize + conclusionSize <= maxEmbedSize) {
+                embed.addFields({
+                  name: '🔮 Kết luận',
+                  value: conclusionText.substring(0, 1024),
+                  inline: false
+                });
+                currentSize += conclusionSize;
+                fieldCount++;
+              }
             }
           }
           
