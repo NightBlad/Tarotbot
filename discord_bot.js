@@ -653,28 +653,78 @@ function registerEventHandlers(botClient) {
           // Set embed title and description
           embed.setTitle(title.substring(0, 256));
           
-          if (description.trim()) {
-            embed.setDescription(description.trim().substring(0, 4096));
+          // Calculate current embed size for validation
+          function getEmbedSize(e) {
+            let size = 0;
+            if (e.data.title) size += e.data.title.length;
+            if (e.data.description) size += e.data.description.length;
+            if (e.data.fields) {
+              for (const f of e.data.fields) {
+                size += (f.name || '').length + (f.value || '').length;
+              }
+            }
+            if (e.data.footer && e.data.footer.text) size += e.data.footer.text.length;
+            return size;
           }
           
-          // Add fields for card meanings (validate each field before adding)
+          // Add description with size checking
+          if (description.trim()) {
+            const maxDescLen = Math.min(4096, 4000 - title.length); // leave room for other content
+            embed.setDescription(description.trim().substring(0, maxDescLen));
+          }
+          
+          // Add fields for card meanings (validate each field and check total size)
+          let currentSize = getEmbedSize(embed);
+          const maxEmbedSize = 5800; // safety margin below 6000
+          
           for (const field of fields.slice(0, 25)) { // Discord max 25 fields
             // Double-check field constraints before adding
             if (field.name && field.name.length > 0 && field.name.length <= 256 &&
                 field.value && field.value.length > 0 && field.value.length <= 1024) {
+              
+              const fieldSize = field.name.length + field.value.length;
+              
+              // Check if adding this field would exceed the limit
+              if (currentSize + fieldSize > maxEmbedSize) {
+                // Truncate or skip - add a note that content was truncated
+                if (embed.data.fields && embed.data.fields.length === 0) {
+                  // If no fields added yet, add a truncated version
+                  const truncatedValue = field.value.substring(0, Math.min(1024, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
+                  embed.addFields({
+                    name: field.name,
+                    value: truncatedValue,
+                    inline: false
+                  });
+                  currentSize += field.name.length + truncatedValue.length;
+                }
+                // Add truncation notice and stop
+                if (currentSize + 150 < maxEmbedSize) {
+                  embed.addFields({
+                    name: '⚠️ Nội dung bị cắt',
+                    value: 'Kết quả quá dài. Một số thông tin đã được rút gọn.',
+                    inline: false
+                  });
+                }
+                break;
+              }
+              
               embed.addFields(field);
+              currentSize += fieldSize;
             }
           }
           
-          // Add conclusion as a field if present
+          // Add conclusion as a field if present and size allows
           if (conclusion.trim()) {
             const conclusionText = conclusion.trim().substring(0, 1024);
-            if (conclusionText) {
+            const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
+            
+            if (currentSize + conclusionSize <= maxEmbedSize && conclusionText) {
               embed.addFields({
                 name: '🔮 Kết luận',
                 value: conclusionText,
                 inline: false
               });
+              currentSize += conclusionSize;
             }
           }
           
@@ -683,12 +733,31 @@ function registerEventHandlers(botClient) {
             embed.setImage(imgs[0]);
           }
           
-          // If question was provided, add as footer
+          // If question was provided, add as footer (only if size allows)
           if (question) {
-            embed.setFooter({ text: `Câu hỏi: ${question}`.substring(0, 2048) });
+            const footerText = `Câu hỏi: ${question}`.substring(0, 2048);
+            const finalSize = getEmbedSize(embed) + footerText.length;
+            if (finalSize <= maxEmbedSize) {
+              embed.setFooter({ text: footerText });
+            }
           }
           
-          await safeEditReply(interaction, { embeds: [embed] });
+          // Final validation: ensure total embed size is under limit
+          const totalSize = getEmbedSize(embed);
+          if (totalSize > 6000) {
+            console.warn(`Embed size ${totalSize} exceeds 6000, attempting emergency truncation`);
+            // Emergency fallback: create simplified embed
+            const fallbackEmbed = new EmbedBuilder()
+              .setColor(0x7B68EE)
+              .setTitle(title.substring(0, 256))
+              .setDescription('⚠️ Kết quả bói quá dài để hiển thị đầy đủ. Dưới đây là tóm tắt:\n\n' + 
+                cleanText.substring(0, 1500) + '\n\n...(nội dung đã được rút gọn)')
+              .setTimestamp();
+            if (imgs.length > 0) fallbackEmbed.setImage(imgs[0]);
+            await safeEditReply(interaction, { embeds: [fallbackEmbed] });
+          } else {
+            await safeEditReply(interaction, { embeds: [embed] });
+          }
         } catch (err) {
           console.error('Tarot or LangFlow invocation error', err);
           try { await safeEditReply(interaction, { content: `Error: ${err.message}` }); } catch (_) {}
