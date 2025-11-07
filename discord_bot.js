@@ -422,8 +422,9 @@ function registerEventHandlers(botClient) {
 
         // We no longer call the local Tarot API during slash commands. Instead send the spread metadata to LangFlow directly.
         if (!await safeDeferReply(interaction)) return;
+
         try {
-          // Build the input object to send to LangFlow: include spread metadata only
+          // Build the input object to send to LangFlow
           const lfInput = {
             spread: sub,
             apiPath,
@@ -436,7 +437,7 @@ function registerEventHandlers(botClient) {
 
           const lfOut = await callLangFlow(flowToUse, lfInput);
 
-          // Helper: try to extract a human text from various possible output shapes
+          // extract human text from various shapes
           function extractText(o) {
             if (!o) return '';
             if (typeof o === 'string') return o;
@@ -450,22 +451,19 @@ function registerEventHandlers(botClient) {
                 if (o.data.output) return o.data.output;
                 if (o.data.result) return o.data.result;
               }
-              // Nested example from the provided sample
               if (o.results && o.results.message && o.results.message.data && o.results.message.data.text) return o.results.message.data.text;
             }
             try { return JSON.stringify(o); } catch (_) { return String(o); }
           }
 
-          // Helper: extract image URLs and convert relative image paths to absolute https URLs
+          // extract image URLs and convert relative image paths to absolute https URLs
           function extractImageUrls(s) {
             if (!s) return [];
             const text = typeof s === 'string' ? s : JSON.stringify(s);
             const urls = new Set();
-            // match absolute urls ending with common image extensions
-            const absRe = /https?:\/\/[\s\S]*?\.(?:png|jpe?g|gif|svg)/ig;
+            const absRe = /https?:\/\/[\S]+?\.(?:png|jpe?g|gif|svg)/ig;
             let m;
             while ((m = absRe.exec(text))) urls.add(m[0].replace(/^http:/,'https:'));
-            // match image paths like ./images/name.jpg or /images/name.jpg or images/name.jpg
             const relRe = /(?:\.\/)?\/?images\/[\w\-@%\.\(\)\[\]]+?\.(?:png|jpe?g|gif|svg)/ig;
             while ((m = relRe.exec(text))) {
               let u = m[0].replace(/^\.\//, '/');
@@ -478,19 +476,15 @@ function registerEventHandlers(botClient) {
             return Array.from(urls);
           }
 
-          // Extract primary text from the LangFlow/agent output
           let textContent = (extractText(lfOut) || '(no output)').toString().trim();
-
-          // Collect image URLs from any place in the output
           const imgsSet = new Set(extractImageUrls(lfOut));
 
-          // Helper: normalize/absolute image URL from a path or name_short
+          // Normalize urls helper
           function normalizeImageUrl(u) {
             if (!u) return null;
             u = String(u).trim();
             if (u.startsWith('http://')) u = u.replace(/^http:/, 'https:');
             if (u.startsWith('https://')) return u;
-            // if it's a relative path like ./images/name.jpg or /images/name.jpg or images/name.jpg
             const cleaned = u.replace(/^\.\//, '/');
             const base = (String(TAROT_API_URL || '').trim() || 'https://tarotbot-astc.onrender.com').replace(/\/$/, '');
             return `${base}${cleaned.startsWith('/') ? '' : '/'}${cleaned.replace(/^\/+/, '')}`.replace(/^http:/,'https:');
@@ -498,7 +492,6 @@ function registerEventHandlers(botClient) {
 
           // Parse embedded input_value JSONs (some agents put original API inputs here)
           try {
-            // If lfOut has an outputs array, each output may have inputs.input_value
             if (Array.isArray(lfOut.outputs)) {
               for (const outItem of lfOut.outputs) {
                 if (outItem && outItem.inputs && outItem.inputs.input_value) {
@@ -511,19 +504,15 @@ function registerEventHandlers(botClient) {
                         if (t && t.image) imgsSet.add(normalizeImageUrl(t.image));
                         if (t && t.name_short) imgsSet.add(normalizeImageUrl(`/images/${t.name_short}.jpg`));
                       }
-                    } catch (_) {
-                      // not JSON, ignore
-                    }
+                    } catch (_) {}
                   }
                 }
-                // sometimes text itself may contain an image path pointing to the API images
                 if (outItem && outItem.results) {
                   const possibleText = extractText(outItem.results);
                   for (const u of extractImageUrls(possibleText)) imgsSet.add(normalizeImageUrl(u));
                 }
               }
             }
-            // also check lfOut.inputs.input_value at top level
             if (lfOut.inputs && lfOut.inputs.input_value) {
               const iv = lfOut.inputs.input_value;
               if (typeof iv === 'string') {
@@ -538,32 +527,88 @@ function registerEventHandlers(botClient) {
               }
             }
           } catch (e) {
-            // non-fatal
             console.warn('parse embedded inputs failed', e && e.message);
           }
 
-          // remove falsy and duplicate, keep order by converting to array
           const imgs = Array.from(imgsSet).filter(Boolean);
 
           // If the main text is empty but nested outputs contain text, try to grab them
           if ((!textContent || textContent === '(no output)') && Array.isArray(lfOut.outputs)) {
             for (const outItem of lfOut.outputs) {
               const t = extractText(outItem.results || outItem);
-              if (t && t !== '(no output)') {
-                textContent = t; break;
-              }
+              if (t && t !== '(no output)') { textContent = t; break; }
             }
           }
 
-          // Build plain text reply: text first, then Images: list, and include raw_api minified for debugging
-          let reply = textContent;
-          if (imgs.length) reply += '\n\nImages:\n' + imgs.join('\n');
-          try { reply += '\n\nraw_api:' + JSON.stringify(lfOut); } catch (_) {}
+          // Build a clean embed using extracted tarot data when possible
+          const truncate = (s, n) => { if (!s) return ''; const str = String(s); return str.length > n ? str.slice(0, n - 3) + '...' : str; };
+          function extractTarotData(obj) {
+            if (!obj) return null;
+            const tryCandidates = [];
+            tryCandidates.push(obj);
+            if (obj.result) tryCandidates.push(obj.result);
+            if (obj.data) tryCandidates.push(obj.data);
+            if (obj.tarot) tryCandidates.push(obj.tarot);
+            if (obj.results && obj.results.data) tryCandidates.push(obj.results.data);
+            if (obj.outputs && Array.isArray(obj.outputs)) {
+              for (const o of obj.outputs) {
+                if (o && o.inputs && o.inputs.input_value) tryCandidates.push(o.inputs.input_value);
+                if (o && o.results && o.results.message && o.results.message.data) tryCandidates.push(o.results.message.data);
+                if (o && o.results) tryCandidates.push(o.results);
+              }
+            }
+            if (obj.inputs && obj.inputs.input_value) tryCandidates.push(obj.inputs.input_value);
+            for (let c of tryCandidates) {
+              if (!c) continue;
+              if (typeof c === 'string') {
+                try { c = JSON.parse(c); } catch (_) {}
+              }
+              if (c && typeof c === 'object') {
+                if (c.name || c.name_short || c.meaning_up || c.meaning_rev) return c;
+                if (c.data && typeof c.data === 'object' && (c.data.name || c.data.name_short)) return c.data;
+              }
+            }
+            return null;
+          }
 
-          // Keep reply within Discord message limits (safe margin)
-          if (reply.length > 1900) reply = reply.slice(0, 1897) + '...';
-          await safeEditReply(interaction, { content: reply });
-        } catch (err) {
+          const tarot = extractTarotData(lfOut) || extractTarotData(lfOut.data) || null;
+
+          try {
+            const embed = new EmbedBuilder();
+            let title = 'Trải bài';
+            if (tarot && tarot.name) title = tarot.name + (tarot.orientation ? ` (${tarot.orientation})` : '');
+            if ((!tarot || !tarot.name) && textContent) title = textContent.split('\n')[0].slice(0, 240);
+            embed.setTitle(truncate(title, 256));
+            let description = '';
+            if (tarot && tarot.meaning_up && tarot.orientation && tarot.orientation.toLowerCase().includes('upr')) description = tarot.meaning_up;
+            else if (tarot && tarot.meaning_rev && tarot.orientation && tarot.orientation.toLowerCase().includes('rev')) description = tarot.meaning_rev;
+            else if (tarot && tarot.meaning_up) description = tarot.meaning_up;
+            else description = (textContent || '').split('\n\n')[0] || '';
+            embed.setDescription(truncate(description, 4096));
+            if (tarot && (tarot.meaning_up || tarot.meaning_rev)) {
+              const m = [];
+              if (tarot.meaning_up) m.push('Úp: ' + tarot.meaning_up);
+              if (tarot.meaning_rev) m.push('Nghiêng/Ngược: ' + tarot.meaning_rev);
+              embed.addFields({ name: 'Ý nghĩa', value: truncate(m.join('\n'), 1024), inline: false });
+            }
+            if (textContent) embed.addFields({ name: 'Chi tiết', value: truncate(textContent.replace(/\r/g,''), 1024), inline: false });
+            if (imgs && imgs.length) { try { embed.setImage(imgs[0]); embed.setThumbnail(imgs[0]); } catch (_) {} }
+            try { embed.setFooter({ text: 'TarotBot' }); } catch (_) {}
+            const embedStr = JSON.stringify(embed.toJSON());
+            if (embedStr.length < 6000) await safeEditReply(interaction, { embeds: [embed] });
+            else {
+              let reply = textContent;
+              if (imgs.length) reply += '\n\nImages:\n' + imgs.join('\n');
+              if (reply.length > 1900) reply = reply.slice(0, 1897) + '...';
+              await safeEditReply(interaction, { content: reply });
+            }
+          } catch (e) {
+            let reply = textContent;
+            if (imgs.length) reply += '\n\nImages:\n' + imgs.join('\n');
+            if (reply.length > 1900) reply = reply.slice(0, 1897) + '...';
+            await safeEditReply(interaction, { content: reply });
+          }
+  } catch (err) {
           console.error('Tarot or LangFlow invocation error', err);
           try { await safeEditReply(interaction, { content: `Error: ${err.message}` }); } catch (_) {}
         }
