@@ -676,19 +676,28 @@ function registerEventHandlers(botClient) {
           // Add fields for card meanings (validate each field and check total size)
           let currentSize = getEmbedSize(embed);
           const maxEmbedSize = 5800; // safety margin below 6000
+          let fieldCount = 0;
+          const maxFields = 24; // Reserve 1 field for truncation notice or conclusion
+          let wasTruncated = false;
           
-          for (const field of fields.slice(0, 25)) { // Discord max 25 fields
+          for (const field of fields) {
+            // Stop if we've reached field limit
+            if (fieldCount >= maxFields) {
+              wasTruncated = true;
+              break;
+            }
+            
             // Double-check field constraints before adding
             if (field.name && field.name.length > 0 && field.name.length <= 256 &&
                 field.value && field.value.length > 0 && field.value.length <= 1024) {
               
               const fieldSize = field.name.length + field.value.length;
               
-              // Check if adding this field would exceed the limit
+              // Check if adding this field would exceed the size limit
               if (currentSize + fieldSize > maxEmbedSize) {
-                // Truncate or skip - add a note that content was truncated
-                if (embed.data.fields && embed.data.fields.length === 0) {
-                  // If no fields added yet, add a truncated version
+                wasTruncated = true;
+                // If no fields added yet, add at least a truncated version of this one
+                if (fieldCount === 0) {
                   const truncatedValue = field.value.substring(0, Math.min(1024, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
                   embed.addFields({
                     name: field.name,
@@ -696,25 +705,33 @@ function registerEventHandlers(botClient) {
                     inline: false
                   });
                   currentSize += field.name.length + truncatedValue.length;
-                }
-                // Add truncation notice and stop
-                if (currentSize + 150 < maxEmbedSize) {
-                  embed.addFields({
-                    name: '⚠️ Nội dung bị cắt',
-                    value: 'Kết quả quá dài. Một số thông tin đã được rút gọn.',
-                    inline: false
-                  });
+                  fieldCount++;
                 }
                 break;
               }
               
               embed.addFields(field);
               currentSize += fieldSize;
+              fieldCount++;
+            }
+          }
+          
+          // Add truncation notice if content was cut (only if we have room)
+          if (wasTruncated && fieldCount < 25) {
+            const noticeSize = '⚠️ Nội dung bị cắt'.length + 'Kết quả quá dài. Một số thông tin đã được rút gọn.'.length;
+            if (currentSize + noticeSize < maxEmbedSize) {
+              embed.addFields({
+                name: '⚠️ Nội dung bị cắt',
+                value: 'Kết quả quá dài. Một số thông tin đã được rút gọn.',
+                inline: false
+              });
+              currentSize += noticeSize;
+              fieldCount++;
             }
           }
           
           // Add conclusion as a field if present and size allows
-          if (conclusion.trim()) {
+          if (conclusion.trim() && fieldCount < 25) {
             const conclusionText = conclusion.trim().substring(0, 1024);
             const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
             
@@ -725,6 +742,7 @@ function registerEventHandlers(botClient) {
                 inline: false
               });
               currentSize += conclusionSize;
+              fieldCount++;
             }
           }
           
