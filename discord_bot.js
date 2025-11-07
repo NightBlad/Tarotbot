@@ -544,6 +544,22 @@ function registerEventHandlers(botClient) {
           textContent = textContent.replace(/\.png\/n\/n/g, '.png\n\n');
           // Clean up multiple consecutive newlines (more than 2)
           textContent = textContent.replace(/\n{3,}/g, '\n\n');
+          
+          // REMOVE DUPLICATES: Detect and remove repeated sections
+          // Split by common section markers to find duplicates
+          const sections = textContent.split(/(?=SIGNIFICATOR|1:|2:|3:|4:|5:|6:|7:|8:|9:|10:)/);
+          const uniqueSections = [];
+          const seenSections = new Set();
+          
+          for (const section of sections) {
+            const normalized = section.trim().substring(0, 200); // Compare first 200 chars
+            if (normalized && !seenSections.has(normalized)) {
+              seenSections.add(normalized);
+              uniqueSections.push(section);
+            }
+          }
+          
+          textContent = uniqueSections.join('\n').trim();
 
           // Collect image URLs from any place in the output
           const imgsSet = new Set(extractImageUrls(lfOut));
@@ -797,6 +813,23 @@ function registerEventHandlers(botClient) {
           // Add first image as main embed image
           if (imgs.length > 0) {
             embed.setImage(imgs[0]);
+          }
+          
+          // Add additional images as separate fields (thumbnail style URLs)
+          if (imgs.length > 1) {
+            const additionalImgs = imgs.slice(1, 6); // Maximum 5 additional images
+            for (let i = 0; i < additionalImgs.length && fieldCount < 25; i++) {
+              const imgSize = `🖼️ Hình ${i + 2}`.length + additionalImgs[i].length;
+              if (currentSize + imgSize <= maxEmbedSize) {
+                embed.addFields({
+                  name: `🖼️ Hình ${i + 2}`,
+                  value: additionalImgs[i],
+                  inline: false
+                });
+                currentSize += imgSize;
+                fieldCount++;
+              }
+            }
           }
           
           // If question was provided, add as footer (only if size allows)
