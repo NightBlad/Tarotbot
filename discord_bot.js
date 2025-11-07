@@ -579,15 +579,19 @@ function registerEventHandlers(botClient) {
               continue;
             }
             
-            // Lines containing card names with (Xuôi) or (Ngược)
-            if (line.includes('(Xuôi)') || line.includes('(Ngược)') || line.includes('—')) {
+            // Lines containing card names with (Xuôi) or (Ngược) followed by em dash
+            if ((line.includes('(Xuôi)') || line.includes('(Ngược)')) && line.includes('—')) {
               const parts = line.split('—');
               if (parts.length >= 2) {
-                fields.push({
-                  name: parts[0].trim(),
-                  value: parts.slice(1).join('—').trim().substring(0, 1024),
-                  inline: false
-                });
+                const fieldName = parts[0].trim().substring(0, 256); // ensure name <= 256 chars
+                const fieldValue = parts.slice(1).join('—').trim().substring(0, 1024); // ensure value <= 1024 chars
+                if (fieldName && fieldValue) {
+                  fields.push({
+                    name: fieldName,
+                    value: fieldValue,
+                    inline: false
+                  });
+                }
               }
               continue;
             }
@@ -598,8 +602,10 @@ function registerEventHandlers(botClient) {
               continue;
             }
             
-            if (line.toLowerCase().startsWith('lời khuyên')) {
-              const advice = line.substring(line.indexOf(':') + 1).trim();
+            // Detect advice section with colon
+            if (line.toLowerCase().startsWith('lời khuyên') && line.includes(':')) {
+              const colonIdx = line.indexOf(':');
+              const advice = line.substring(colonIdx + 1).trim();
               if (advice) {
                 fields.push({
                   name: '💡 Lời khuyên',
@@ -625,18 +631,25 @@ function registerEventHandlers(botClient) {
             embed.setDescription(description.trim().substring(0, 4096));
           }
           
-          // Add fields for card meanings
+          // Add fields for card meanings (validate each field before adding)
           for (const field of fields.slice(0, 25)) { // Discord max 25 fields
-            embed.addFields(field);
+            // Double-check field constraints before adding
+            if (field.name && field.name.length > 0 && field.name.length <= 256 &&
+                field.value && field.value.length > 0 && field.value.length <= 1024) {
+              embed.addFields(field);
+            }
           }
           
           // Add conclusion as a field if present
           if (conclusion.trim()) {
-            embed.addFields({
-              name: '🔮 Kết luận',
-              value: conclusion.trim().substring(0, 1024),
-              inline: false
-            });
+            const conclusionText = conclusion.trim().substring(0, 1024);
+            if (conclusionText) {
+              embed.addFields({
+                name: '🔮 Kết luận',
+                value: conclusionText,
+                inline: false
+              });
+            }
           }
           
           // Add first image as main embed image
@@ -646,7 +659,7 @@ function registerEventHandlers(botClient) {
           
           // If question was provided, add as footer
           if (question) {
-            embed.setFooter({ text: `Câu hỏi: ${question}` });
+            embed.setFooter({ text: `Câu hỏi: ${question}`.substring(0, 2048) });
           }
           
           await safeEditReply(interaction, { embeds: [embed] });
