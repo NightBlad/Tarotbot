@@ -414,35 +414,155 @@ function registerEventHandlers(botClient) {
         // Prepare flow id and fetch structured tarot data first
         const flowToUse = (sub === 'flow') ? (interaction.options.getString('flow_id') || sub) : sub;
 
-        // Call local tarot API to get structured spread data
+        // Ensure LANGFLOW_API_URL is configured and is a URL
+        if (!LANGFLOW_API_URL || !String(LANGFLOW_API_URL).toLowerCase().startsWith('http')) {
+          await safeEditReply(interaction, { content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_URL to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
+          return;
+        }
+
+        // We no longer call the local Tarot API during slash commands. Instead send the spread metadata to LangFlow directly.
         if (!await safeDeferReply(interaction)) return;
         try {
-          const tarotResp = await callTarotApi({ spread: sub, n: interaction.options.getInteger('n'), sig: interaction.options.getString('sig'), extraQuestions: null, question });
-
-          // Build the input object to send to LangFlow: include spread metadata and the full tarot response
+          // Build the input object to send to LangFlow: include spread metadata only
           const lfInput = {
             spread: sub,
             apiPath,
             question: question || '',
-            tarot: tarotResp
+            n: interaction.options.getInteger('n') || null,
+            sig: interaction.options.getString('sig') || null
           };
 
           if (LANGFLOW_DEBUG) console.log('Calling LangFlow with flow=', flowToUse, 'input keys=', Object.keys(lfInput));
 
           const lfOut = await callLangFlow(flowToUse, lfInput);
 
-          let desc = '';
-          if (lfOut == null) {
-            desc = '(no output)';
-          } else if (typeof lfOut === 'string') {
-            desc = lfOut;
-          } else {
-            try { desc = JSON.stringify(lfOut, null, 2); } catch (_) { desc = String(lfOut); }
+          // Helper: try to extract a human text from various possible output shapes
+          function extractText(o) {
+            if (!o) return '';
+            if (typeof o === 'string') return o;
+            if (typeof o === 'object') {
+              if (o.text) return o.text;
+              if (o.output && typeof o.output === 'string') return o.output;
+              if (o.result && typeof o.result === 'string') return o.result;
+              if (o.data && typeof o.data === 'string') return o.data;
+              if (o.data && typeof o.data === 'object') {
+                if (o.data.text) return o.data.text;
+                if (o.data.output) return o.data.output;
+                if (o.data.result) return o.data.result;
+              }
+              // Nested example from the provided sample
+              if (o.results && o.results.message && o.results.message.data && o.results.message.data.text) return o.results.message.data.text;
+            }
+            try { return JSON.stringify(o); } catch (_) { return String(o); }
           }
-          desc = desc.substring(0, 4000);
-          const embed = new EmbedBuilder().setTitle(`LangFlow — ${flowToUse}`).setDescription(desc).setTimestamp();
-          if (question) embed.setFooter({ text: `Query: ${question}` });
-          await safeEditReply(interaction, { embeds: [embed] });
+
+          // Helper: extract image URLs and convert relative image paths to absolute https URLs
+          function extractImageUrls(s) {
+            if (!s) return [];
+            const text = typeof s === 'string' ? s : JSON.stringify(s);
+            const urls = new Set();
+            // match absolute urls ending with common image extensions
+            const absRe = /https?:\/\/[\s\S]*?\.(?:png|jpe?g|gif|svg)/ig;
+            let m;
+            while ((m = absRe.exec(text))) urls.add(m[0].replace(/^http:/,'https:'));
+            // match image paths like ./images/name.jpg or /images/name.jpg or images/name.jpg
+            const relRe = /(?:\.\/)?\/?images\/[\w\-@%\.\(\)\[\]]+?\.(?:png|jpe?g|gif|svg)/ig;
+            while ((m = relRe.exec(text))) {
+              let u = m[0].replace(/^\.\//, '/');
+              if (!u.startsWith('http')) {
+                const base = (String(TAROT_API_URL || '').trim() || 'https://tarotbot-astc.onrender.com').replace(/\/$/, '');
+                u = `${base}${u.startsWith('/') ? '' : '/'}${u.replace(/^\/+/, '')}`;
+              }
+              urls.add(u.replace(/^http:/,'https:'));
+            }
+            return Array.from(urls);
+          }
+
+          // Extract primary text from the LangFlow/agent output
+          let textContent = (extractText(lfOut) || '(no output)').toString().trim();
+
+          // Collect image URLs from any place in the output
+          const imgsSet = new Set(extractImageUrls(lfOut));
+
+          // Helper: normalize/absolute image URL from a path or name_short
+          function normalizeImageUrl(u) {
+            if (!u) return null;
+            u = String(u).trim();
+            if (u.startsWith('http://')) u = u.replace(/^http:/, 'https:');
+            if (u.startsWith('https://')) return u;
+            // if it's a relative path like ./images/name.jpg or /images/name.jpg or images/name.jpg
+            const cleaned = u.replace(/^\.\//, '/');
+            const base = (String(TAROT_API_URL || '').trim() || 'https://tarotbot-astc.onrender.com').replace(/\/$/, '');
+            return `${base}${cleaned.startsWith('/') ? '' : '/'}${cleaned.replace(/^\/+/, '')}`.replace(/^http:/,'https:');
+          }
+
+          // Parse embedded input_value JSONs (some agents put original API inputs here)
+          try {
+            // If lfOut has an outputs array, each output may have inputs.input_value
+            if (Array.isArray(lfOut.outputs)) {
+              for (const outItem of lfOut.outputs) {
+                if (outItem && outItem.inputs && outItem.inputs.input_value) {
+                  const iv = outItem.inputs.input_value;
+                  if (typeof iv === 'string') {
+                    try {
+                      const parsed = JSON.parse(iv);
+                      if (parsed && parsed.tarot) {
+                        const t = parsed.tarot.data || parsed.tarot;
+                        if (t && t.image) imgsSet.add(normalizeImageUrl(t.image));
+                        if (t && t.name_short) imgsSet.add(normalizeImageUrl(`/images/${t.name_short}.jpg`));
+                      }
+                    } catch (_) {
+                      // not JSON, ignore
+                    }
+                  }
+                }
+                // sometimes text itself may contain an image path pointing to the API images
+                if (outItem && outItem.results) {
+                  const possibleText = extractText(outItem.results);
+                  for (const u of extractImageUrls(possibleText)) imgsSet.add(normalizeImageUrl(u));
+                }
+              }
+            }
+            // also check lfOut.inputs.input_value at top level
+            if (lfOut.inputs && lfOut.inputs.input_value) {
+              const iv = lfOut.inputs.input_value;
+              if (typeof iv === 'string') {
+                try {
+                  const parsed = JSON.parse(iv);
+                  if (parsed && parsed.tarot) {
+                    const t = parsed.tarot.data || parsed.tarot;
+                    if (t && t.image) imgsSet.add(normalizeImageUrl(t.image));
+                    if (t && t.name_short) imgsSet.add(normalizeImageUrl(`/images/${t.name_short}.jpg`));
+                  }
+                } catch (_) {}
+              }
+            }
+          } catch (e) {
+            // non-fatal
+            console.warn('parse embedded inputs failed', e && e.message);
+          }
+
+          // remove falsy and duplicate, keep order by converting to array
+          const imgs = Array.from(imgsSet).filter(Boolean);
+
+          // If the main text is empty but nested outputs contain text, try to grab them
+          if ((!textContent || textContent === '(no output)') && Array.isArray(lfOut.outputs)) {
+            for (const outItem of lfOut.outputs) {
+              const t = extractText(outItem.results || outItem);
+              if (t && t !== '(no output)') {
+                textContent = t; break;
+              }
+            }
+          }
+
+          // Build plain text reply: text first, then Images: list, and include raw_api minified for debugging
+          let reply = textContent;
+          if (imgs.length) reply += '\n\nImages:\n' + imgs.join('\n');
+          try { reply += '\n\nraw_api:' + JSON.stringify(lfOut); } catch (_) {}
+
+          // Keep reply within Discord message limits (safe margin)
+          if (reply.length > 1900) reply = reply.slice(0, 1897) + '...';
+          await safeEditReply(interaction, { content: reply });
         } catch (err) {
           console.error('Tarot or LangFlow invocation error', err);
           try { await safeEditReply(interaction, { content: `Error: ${err.message}` }); } catch (_) {}
