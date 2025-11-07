@@ -118,6 +118,27 @@ const client = createClient(false);
 const { callTarotApi } = require('./tarot_client');
 const { renderCardsToImage, saveImageToTemp } = require('./image_renderer');
 
+// Check and install Chrome for Puppeteer if needed
+(async () => {
+  try {
+    const { execSync } = require('child_process');
+    const chromePath = require('path').join(process.env.HOME || process.env.USERPROFILE, '.cache', 'puppeteer', 'chrome');
+    const fs = require('fs');
+    
+    // Check if Chrome is already installed
+    if (!fs.existsSync(chromePath)) {
+      console.log('Chrome not found. Installing Chrome for Puppeteer...');
+      execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' });
+      console.log('Chrome installed successfully!');
+    } else {
+      console.log('Chrome for Puppeteer is already installed.');
+    }
+  } catch (err) {
+    console.warn('Could not verify/install Chrome:', err.message);
+    console.warn('Image rendering may not work. Run: npx puppeteer browsers install chrome');
+  }
+})();
+
 async function callApi(path) {
   const url = `${TAROT_API_URL}${path}`;
   const res = await fetch(url);

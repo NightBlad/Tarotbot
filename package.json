@@ -7,7 +7,8 @@
     "start": "node server.js",
     "bot": "node discord_bot.js",
     "start:app": "node app.js",
-    "start:supervised": "node supervisor.js",
+    "start:supervised": "npm run setup:chrome && node supervisor.js",
+    "setup:chrome": "npx puppeteer browsers install chrome --path node_modules/puppeteer/.local-chromium || echo Chrome already installed",
     "test": "node test_tarot_api.js"
   },
   "dependencies": {
