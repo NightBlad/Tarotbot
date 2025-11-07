@@ -461,10 +461,14 @@ function registerEventHandlers(botClient) {
             if (!s) return [];
             const text = typeof s === 'string' ? s : JSON.stringify(s);
             const urls = new Set();
-            // match absolute urls ending with common image extensions
-            const absRe = /https?:\/\/[\s\S]*?\.(?:png|jpe?g|gif|svg)/ig;
+            // match absolute urls ending with common image extensions (including malformed ones with /n/n)
+            const absRe = /https?:\/\/[^\s"'<>]+?\.(?:png|jpe?g|gif|svg)(?:\/n\/n)?/ig;
             let m;
-            while ((m = absRe.exec(text))) urls.add(m[0].replace(/^http:/,'https:'));
+            while ((m = absRe.exec(text))) {
+              // Clean up malformed URLs
+              let url = m[0].replace(/\/n\/n$/, '').replace(/^http:/,'https:');
+              urls.add(url);
+            }
             // match image paths like ./images/name.jpg or /images/name.jpg or images/name.jpg
             const relRe = /(?:\.\/)?\/?images\/[\w\-@%\.\(\)\[\]]+?\.(?:png|jpe?g|gif|svg)/ig;
             while ((m = relRe.exec(text))) {
@@ -480,6 +484,18 @@ function registerEventHandlers(botClient) {
 
           // Extract primary text from the LangFlow/agent output
           let textContent = (extractText(lfOut) || '(no output)').toString().trim();
+          
+          // Clean up the text: remove JSON artifacts and fix formatting
+          // Remove escaped quotes and newlines from JSON stringification
+          textContent = textContent.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
+          // Remove any remaining JSON structure markers
+          textContent = textContent.replace(/^["']|["']$/g, '');
+          // Fix malformed image URLs (remove /n/n or similar artifacts)
+          textContent = textContent.replace(/\.jpeg\/n\/n/g, '.jpeg\n\n');
+          textContent = textContent.replace(/\.jpg\/n\/n/g, '.jpg\n\n');
+          textContent = textContent.replace(/\.png\/n\/n/g, '.png\n\n');
+          // Clean up multiple consecutive newlines (more than 2)
+          textContent = textContent.replace(/\n{3,}/g, '\n\n');
 
           // Collect image URLs from any place in the output
           const imgsSet = new Set(extractImageUrls(lfOut));
@@ -560,8 +576,18 @@ function registerEventHandlers(botClient) {
             .setColor(0x7B68EE) // mystical purple
             .setTimestamp();
 
+          // Additional cleanup: remove stray image URLs from text (they'll be shown as embed images)
+          let cleanText = textContent;
+          for (const imgUrl of imgs) {
+            cleanText = cleanText.replace(imgUrl, '');
+          }
+          // Remove standalone image URL patterns that might remain
+          cleanText = cleanText.replace(/https?:\/\/[^\s]+?\.(?:jpeg|jpg|png|gif|svg)/gi, '');
+          // Clean up extra whitespace and newlines after URL removal
+          cleanText = cleanText.replace(/\n{3,}/g, '\n\n').trim();
+
           // Parse the text to extract title, card info, and conclusion
-          const lines = textContent.split('\n').filter(l => l.trim());
+          const lines = cleanText.split('\n').filter(l => l.trim());
           
           // Try to extract title (first line usually contains spread type)
           let title = 'Kết quả bói Tarot';
