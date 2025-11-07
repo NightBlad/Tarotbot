@@ -483,12 +483,44 @@ function registerEventHandlers(botClient) {
           if (LANGFLOW_DEBUG) console.log('Calling LangFlow with flow=', flowToUse, 'input keys=', Object.keys(lfInput));
 
           const lfOut = await callLangFlow(flowToUse, lfInput);
+          
+          // Debug: Log the structure of LangFlow output
+          if (LANGFLOW_DEBUG) {
+            console.log('LangFlow response keys:', Object.keys(lfOut || {}));
+            if (lfOut && lfOut.outputs && Array.isArray(lfOut.outputs)) {
+              console.log('First output keys:', lfOut.outputs[0] ? Object.keys(lfOut.outputs[0]) : 'none');
+              if (lfOut.outputs[0] && lfOut.outputs[0].outputs) {
+                console.log('Nested outputs count:', lfOut.outputs[0].outputs.length);
+              }
+            }
+          }
 
           // Helper: try to extract a human text from various possible output shapes
           function extractText(o) {
             if (!o) return '';
             if (typeof o === 'string') return o;
             if (typeof o === 'object') {
+              // Deep search through nested outputs array structure
+              if (Array.isArray(o.outputs)) {
+                for (const output of o.outputs) {
+                  if (output && output.outputs) {
+                    for (const nestedOutput of output.outputs) {
+                      if (nestedOutput && nestedOutput.results && nestedOutput.results.message) {
+                        const msg = nestedOutput.results.message;
+                        if (msg.data && msg.data.text) return msg.data.text;
+                        if (msg.text) return msg.text;
+                      }
+                    }
+                  }
+                  // Also check direct results
+                  if (output && output.results && output.results.message) {
+                    const msg = output.results.message;
+                    if (msg.data && msg.data.text) return msg.data.text;
+                    if (msg.text) return msg.text;
+                  }
+                }
+              }
+              
               // Check for text field first
               if (o.text) return o.text;
               if (o.output && typeof o.output === 'string') return o.output;
@@ -533,7 +565,13 @@ function registerEventHandlers(botClient) {
           }
 
           // Extract primary text from the LangFlow/agent output
-          let textContent = (extractText(lfOut) || '(no output)').toString().trim();
+          let textContent = (extractText(lfOut) || '').toString().trim();
+          
+          // Debug log extracted text
+          if (LANGFLOW_DEBUG) {
+            console.log('Extracted text length:', textContent.length);
+            console.log('Text preview:', textContent.substring(0, 200));
+          }
           
           // If no text found, check if this is the raw JSON response format
           if (!textContent || textContent === '(no output)') {
