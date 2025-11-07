@@ -489,6 +489,7 @@ function registerEventHandlers(botClient) {
             if (!o) return '';
             if (typeof o === 'string') return o;
             if (typeof o === 'object') {
+              // Check for text field first
               if (o.text) return o.text;
               if (o.output && typeof o.output === 'string') return o.output;
               if (o.result && typeof o.result === 'string') return o.result;
@@ -501,7 +502,8 @@ function registerEventHandlers(botClient) {
               // Nested example from the provided sample
               if (o.results && o.results.message && o.results.message.data && o.results.message.data.text) return o.results.message.data.text;
             }
-            try { return JSON.stringify(o); } catch (_) { return String(o); }
+            // Don't stringify objects - return empty if no text found
+            return '';
           }
 
           // Helper: extract image URLs and convert relative image paths to absolute https URLs
@@ -533,11 +535,19 @@ function registerEventHandlers(botClient) {
           // Extract primary text from the LangFlow/agent output
           let textContent = (extractText(lfOut) || '(no output)').toString().trim();
           
+          // If no text found, check if this is the raw JSON response format
+          if (!textContent || textContent === '(no output)') {
+            // Skip JSON output entirely - don't process if it's just JSON
+            textContent = '';
+          }
+          
           // Clean up the text: remove JSON artifacts and fix formatting
           // Remove escaped quotes and newlines from JSON stringification
           textContent = textContent.replace(/\\"/g, '"').replace(/\\n/g, '\n').replace(/\\\\/g, '\\');
           // Remove any remaining JSON structure markers
           textContent = textContent.replace(/^["']|["']$/g, '');
+          // Remove any leading/trailing JSON-like patterns
+          textContent = textContent.replace(/^\{[^}]*"text":\s*"/i, '').replace(/"[,}]\s*$/i, '');
           // Fix malformed image URLs (remove /n/n or similar artifacts)
           textContent = textContent.replace(/\.jpeg\/n\/n/g, '.jpeg\n\n');
           textContent = textContent.replace(/\.jpg\/n\/n/g, '.jpg\n\n');
@@ -547,7 +557,7 @@ function registerEventHandlers(botClient) {
           
           // REMOVE DUPLICATES: Detect and remove repeated sections
           // Split by common section markers to find duplicates
-          const sections = textContent.split(/(?=SIGNIFICATOR|1:|2:|3:|4:|5:|6:|7:|8:|9:|10:)/);
+          const sections = textContent.split(/(?=SIGNIFICATOR|1:|2:|3:|4:|5:|6:|7:|8:|9:|10:|Quá khứ:|Hiện tại:|Tương lai:)/);
           const uniqueSections = [];
           const seenSections = new Set();
           
@@ -560,6 +570,12 @@ function registerEventHandlers(botClient) {
           }
           
           textContent = uniqueSections.join('\n').trim();
+          
+          // If still no valid text, send error
+          if (!textContent) {
+            await safeEditReply(interaction, { content: '⚠️ Không thể trích xuất kết quả từ LangFlow. Vui lòng thử lại.' });
+            return;
+          }
 
           // Collect image URLs from any place in the output
           const imgsSet = new Set(extractImageUrls(lfOut));
@@ -844,16 +860,115 @@ function registerEventHandlers(botClient) {
           // Final validation: ensure total embed size is under limit
           const totalSize = getEmbedSize(embed);
           if (totalSize > 6000) {
-            console.warn(`Embed size ${totalSize} exceeds 6000, attempting emergency truncation`);
-            // Emergency fallback: create simplified embed
-            const fallbackEmbed = new EmbedBuilder()
+            console.warn(`Embed size ${totalSize} exceeds 6000, splitting into multiple messages`);
+            
+            // Strategy: Split into multiple embeds
+            const embeds = [];
+            
+            // First embed: Title + description + first few fields + first image
+            const firstEmbed = new EmbedBuilder()
               .setColor(0x7B68EE)
               .setTitle(title.substring(0, 256))
-              .setDescription('⚠️ Kết quả bói quá dài để hiển thị đầy đủ. Dưới đây là tóm tắt:\n\n' + 
-                cleanText.substring(0, 1500) + '\n\n...(nội dung đã được rút gọn)')
               .setTimestamp();
-            if (imgs.length > 0) fallbackEmbed.setImage(imgs[0]);
-            await safeEditReply(interaction, { embeds: [fallbackEmbed] });
+            
+            if (description.trim()) {
+              firstEmbed.setDescription(description.trim().substring(0, 4096));
+            }
+            
+            // Add first image to first embed
+            if (imgs.length > 0) {
+              firstEmbed.setImage(imgs[0]);
+            }
+            
+            // Add fields to first embed until we hit limit
+            let firstEmbedSize = getEmbedSize(firstEmbed);
+            let firstEmbedFields = 0;
+            for (const field of fields) {
+              if (firstEmbedFields >= 20) break; // Leave room for continuation
+              const fieldSize = field.name.length + field.value.length;
+              if (firstEmbedSize + fieldSize > 5500) break;
+              
+              firstEmbed.addFields(field);
+              firstEmbedSize += fieldSize;
+              firstEmbedFields++;
+            }
+            
+            embeds.push(firstEmbed);
+            
+            // Create continuation embeds for remaining fields
+            const remainingFields = fields.slice(firstEmbedFields);
+            if (remainingFields.length > 0) {
+              let currentEmbed = new EmbedBuilder()
+                .setColor(0x7B68EE)
+                .setTitle(`${title.substring(0, 240)} (tiếp)`)
+                .setTimestamp();
+              
+              let currentEmbedSize = getEmbedSize(currentEmbed);
+              let currentFieldCount = 0;
+              
+              for (const field of remainingFields) {
+                const fieldSize = field.name.length + field.value.length;
+                
+                // If adding this field would exceed limits, start new embed
+                if (currentFieldCount >= 24 || currentEmbedSize + fieldSize > 5500) {
+                  embeds.push(currentEmbed);
+                  currentEmbed = new EmbedBuilder()
+                    .setColor(0x7B68EE)
+                    .setTitle(`${title.substring(0, 240)} (tiếp)`)
+                    .setTimestamp();
+                  currentEmbedSize = getEmbedSize(currentEmbed);
+                  currentFieldCount = 0;
+                }
+                
+                currentEmbed.addFields(field);
+                currentEmbedSize += fieldSize;
+                currentFieldCount++;
+              }
+              
+              // Add the last embed if it has fields
+              if (currentFieldCount > 0) {
+                embeds.push(currentEmbed);
+              }
+            }
+            
+            // Add conclusion to last embed if present
+            if (conclusion.trim() && embeds.length > 0) {
+              const lastEmbed = embeds[embeds.length - 1];
+              const conclusionText = conclusion.trim().substring(0, 1024);
+              const lastEmbedSize = getEmbedSize(lastEmbed);
+              const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
+              
+              if (lastEmbedSize + conclusionSize <= 5800 && lastEmbed.data.fields && lastEmbed.data.fields.length < 25) {
+                lastEmbed.addFields({
+                  name: '🔮 Kết luận',
+                  value: conclusionText,
+                  inline: false
+                });
+              }
+            }
+            
+            // Add question footer to last embed if present
+            if (question && embeds.length > 0) {
+              const lastEmbed = embeds[embeds.length - 1];
+              const footerText = `Câu hỏi: ${question}`.substring(0, 2048);
+              const lastEmbedSize = getEmbedSize(lastEmbed);
+              if (lastEmbedSize + footerText.length <= 5800) {
+                lastEmbed.setFooter({ text: footerText });
+              }
+            }
+            
+            // Send first embed as reply
+            await safeEditReply(interaction, { embeds: [embeds[0]] });
+            
+            // Send remaining embeds as follow-ups
+            for (let i = 1; i < embeds.length && i < 5; i++) { // Max 5 total messages
+              try {
+                await interaction.followUp({ embeds: [embeds[i]] });
+              } catch (followUpErr) {
+                console.error(`Failed to send follow-up ${i}:`, followUpErr);
+                break;
+              }
+            }
           } else {
             await safeEditReply(interaction, { embeds: [embed] });
           }
