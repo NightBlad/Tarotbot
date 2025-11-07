@@ -416,12 +416,25 @@ function registerEventHandlers(botClient) {
 
         // Ensure LANGFLOW_API_URL is configured and is a URL
         if (!LANGFLOW_API_URL || !String(LANGFLOW_API_URL).toLowerCase().startsWith('http')) {
-          await safeEditReply(interaction, { content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_URL to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', ephemeral: true });
+          await interaction.reply({ content: 'LangFlow integration is not configured correctly. Set LANGFLOW_API_URL to the full run URL (e.g. https://host/api/v1/run/{flow} or the exact run URL).', flags: 64 });
           return;
         }
 
-        // We no longer call the local Tarot API during slash commands. Instead send the spread metadata to LangFlow directly.
-        if (!await safeDeferReply(interaction)) return;
+        // Defer reply IMMEDIATELY before any async operations (LangFlow can be slow)
+        // Use a non-ephemeral reply so the user can see the result
+        try {
+          await interaction.deferReply();
+        } catch (deferErr) {
+          console.error('Failed to defer reply:', deferErr && deferErr.message);
+          // Interaction already expired, try to send a followup or just log
+          try {
+            await interaction.reply({ content: 'Request timed out. Please try again.', flags: 64 });
+          } catch (_) {
+            // Can't do anything, interaction is gone
+          }
+          return;
+        }
+
         try {
           // Build the input object to send to LangFlow: include spread metadata only
           const lfInput = {
