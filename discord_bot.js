@@ -1,6 +1,7 @@
 require('dotenv').config();
 const fetch = require('node-fetch');
 const crypto = require('crypto');
+const path = require('path');
 const {
   Client,
   IntentsBitField,
@@ -8,7 +9,8 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  StringSelectMenuBuilder
+  StringSelectMenuBuilder,
+  AttachmentBuilder
 } = require('discord.js');
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN;
@@ -114,6 +116,7 @@ function createClient(includeMessageContent) {
 
 const client = createClient(false);
 const { callTarotApi } = require('./tarot_client');
+const { renderCardsToImage, saveImageToTemp } = require('./image_renderer');
 
 async function callApi(path) {
   const url = `${TAROT_API_URL}${path}`;
@@ -563,6 +566,31 @@ function registerEventHandlers(botClient) {
             }
             return Array.from(urls);
           }
+          
+          // Helper: Extract card information from text for rendering
+          function extractCardsFromText(text) {
+            const cards = [];
+            const lines = text.split('\n');
+            
+            for (const line of lines) {
+              // Match patterns like "Quá khứ: Card Name (Xuôi/Ngược)"
+              const match = line.match(/^([^:]+):\s*([^(]+)\s*\(([^)]+)\)/);
+              if (match) {
+                const position = match[1].trim();
+                const name = match[2].trim();
+                const orientation = match[3].trim().toLowerCase().includes('ngược') ? 'reversed' : 'upright';
+                
+                cards.push({
+                  position,
+                  name,
+                  orientation,
+                  image: null // Will be filled from image URLs
+                });
+              }
+            }
+            
+            return cards;
+          }
 
           // Extract primary text from the LangFlow/agent output
           let textContent = (extractText(lfOut) || '').toString().trim();
@@ -783,6 +811,30 @@ function registerEventHandlers(botClient) {
           // Set embed title and description
           embed.setTitle(title.substring(0, 256));
           
+          // Try to render cards as a composite image
+          let renderedImagePath = null;
+          try {
+            const cardsData = extractCardsFromText(cleanText);
+            
+            // Match images to cards
+            if (cardsData.length > 0 && imgs.length > 0) {
+              for (let i = 0; i < cardsData.length && i < imgs.length; i++) {
+                cardsData[i].image = imgs[i];
+              }
+              
+              // Render cards to image
+              if (cardsData.every(c => c.image)) {
+                console.log(`Rendering ${cardsData.length} cards to composite image...`);
+                const imageBuffer = await renderCardsToImage(cardsData, { title, spread: sub });
+                renderedImagePath = await saveImageToTemp(imageBuffer, `${sub}_spread`);
+                console.log('Rendered image saved to:', renderedImagePath);
+              }
+            }
+          } catch (renderErr) {
+            console.warn('Failed to render composite image:', renderErr.message);
+            // Continue without rendered image
+          }
+          
           // Calculate current embed size for validation
           function getEmbedSize(e) {
             let size = 0;
@@ -860,78 +912,30 @@ function registerEventHandlers(botClient) {
             }
           }
           
-          // Add conclusion as a field if present and size allows
+          // Add conclusion as a SINGLE field (no splitting into multiple parts)
           if (conclusion.trim() && fieldCount < 25) {
             const conclusionText = conclusion.trim();
             
-            // If conclusion is long, split into multiple fields
+            // If conclusion is longer than 1024, truncate with ellipsis
+            // We'll use the split-message approach instead of multiple conclusion fields
             if (conclusionText.length > 1024) {
-              // Split by sentences - improved regex to catch all sentence endings
-              const sentences = conclusionText.match(/[^.!?]+[.!?]+[\s]*/g);
+              const truncated = conclusionText.substring(0, 1020) + '...';
+              const conclusionSize = '🔮 Kết luận'.length + truncated.length;
               
-              // If regex fails to match (no sentence endings), split by length
-              if (!sentences || sentences.length === 0) {
-                let remainingText = conclusionText;
-                let chunkIndex = 1;
+              if (currentSize + conclusionSize <= maxEmbedSize) {
+                embed.addFields({
+                  name: '🔮 Kết luận',
+                  value: truncated,
+                  inline: false
+                });
+                currentSize += conclusionSize;
+                fieldCount++;
                 
-                while (remainingText.length > 0 && fieldCount < 25) {
-                  const chunkText = remainingText.substring(0, 1020); // Leave room for "..."
-                  const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + chunkText.length;
-                  
-                  if (currentSize + chunkSize <= maxEmbedSize) {
-                    embed.addFields({
-                      name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
-                      value: chunkText + (remainingText.length > 1020 ? '...' : ''),
-                      inline: false
-                    });
-                    currentSize += chunkSize;
-                    fieldCount++;
-                    chunkIndex++;
-                    remainingText = remainingText.substring(1020);
-                  } else {
-                    break;
-                  }
-                }
-              } else {
-                // Split by sentences
-                let currentChunk = '';
-                let chunkIndex = 1;
-                
-                for (const sentence of sentences) {
-                  // If adding this sentence would exceed 1024, save current chunk and start new
-                  if (currentChunk.length + sentence.length > 1020 && currentChunk.length > 0) {
-                    const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + currentChunk.length;
-                    if (currentSize + chunkSize <= maxEmbedSize && fieldCount < 25) {
-                      embed.addFields({
-                        name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
-                        value: currentChunk.trim(),
-                        inline: false
-                      });
-                      currentSize += chunkSize;
-                      fieldCount++;
-                      chunkIndex++;
-                      currentChunk = '';
-                    } else {
-                      break; // No more room
-                    }
-                  }
-                  
-                  currentChunk += sentence;
-                }
-                
-                // Add remaining chunk (IMPORTANT: don't forget the last chunk!)
-                if (currentChunk.trim() && fieldCount < 25) {
-                  const finalChunk = currentChunk.trim().substring(0, 1024);
-                  const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + finalChunk.length;
-                  if (currentSize + chunkSize <= maxEmbedSize) {
-                    embed.addFields({
-                      name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
-                      value: finalChunk,
-                      inline: false
-                    });
-                    currentSize += chunkSize;
-                    fieldCount++;
-                  }
+                // Store remaining conclusion for continuation embed if needed
+                const remainingConclusion = conclusionText.substring(1020);
+                if (remainingConclusion.length > 0) {
+                  // We'll handle this in the split message logic below
+                  embed._remainingConclusion = remainingConclusion;
                 }
               }
             } else {
@@ -940,7 +944,7 @@ function registerEventHandlers(botClient) {
               if (currentSize + conclusionSize <= maxEmbedSize) {
                 embed.addFields({
                   name: '🔮 Kết luận',
-                  value: conclusionText.substring(0, 1024),
+                  value: conclusionText,
                   inline: false
                 });
                 currentSize += conclusionSize;
@@ -949,8 +953,12 @@ function registerEventHandlers(botClient) {
             }
           }
           
-          // Add first image as main embed image
-          if (imgs.length > 0) {
+          // Add first image as main embed image (prefer rendered composite image)
+          if (renderedImagePath) {
+            // Use rendered composite image
+            embed.setImage(`attachment://${path.basename(renderedImagePath)}`);
+          } else if (imgs.length > 0) {
+            // Fallback to first card image
             embed.setImage(imgs[0]);
           }
           
@@ -1081,7 +1089,15 @@ function registerEventHandlers(botClient) {
             }
             
             // Send first embed as reply
-            await safeEditReply(interaction, { embeds: [embeds[0]] });
+            const replyPayload = { embeds: [embeds[0]] };
+            
+            // Attach rendered image if available
+            if (renderedImagePath) {
+              const attachment = new AttachmentBuilder(renderedImagePath);
+              replyPayload.files = [attachment];
+            }
+            
+            await safeEditReply(interaction, replyPayload);
             
             // Send remaining embeds as follow-ups
             for (let i = 1; i < embeds.length && i < 5; i++) { // Max 5 total messages
@@ -1093,7 +1109,15 @@ function registerEventHandlers(botClient) {
               }
             }
           } else {
-            await safeEditReply(interaction, { embeds: [embed] });
+            // Single embed - attach rendered image if available
+            const replyPayload = { embeds: [embed] };
+            
+            if (renderedImagePath) {
+              const attachment = new AttachmentBuilder(renderedImagePath);
+              replyPayload.files = [attachment];
+            }
+            
+            await safeEditReply(interaction, replyPayload);
           }
         } catch (err) {
           console.error('Tarot or LangFlow invocation error', err);

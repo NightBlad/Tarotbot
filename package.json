@@ -6,14 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "bot": "node discord_bot.js",
-  "start:app": "node app.js",
-  "start:supervised": "node supervisor.js",
+    "start:app": "node app.js",
+    "start:supervised": "node supervisor.js",
     "test": "node test_tarot_api.js"
   },
   "dependencies": {
-    "express": "^4.18.2",
     "discord.js": "^14.13.0",
     "dotenv": "^16.0.3",
-    "node-fetch": "^2.6.7"
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7",
+    "node-html-to-image": "^5.0.0"
   }
 }
