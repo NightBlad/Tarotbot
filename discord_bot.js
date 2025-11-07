@@ -807,7 +807,7 @@ function registerEventHandlers(botClient) {
           let currentSize = getEmbedSize(embed);
           const maxEmbedSize = 5800; // safety margin below 6000
           let fieldCount = 0;
-          const maxFields = 24; // Reserve 1 field for truncation notice or conclusion
+          const maxFields = 20; // Reserve more fields for conclusion parts
           let wasTruncated = false;
           
           for (const field of fields) {
@@ -866,44 +866,72 @@ function registerEventHandlers(botClient) {
             
             // If conclusion is long, split into multiple fields
             if (conclusionText.length > 1024) {
-              // Split by paragraphs
-              const paragraphs = conclusionText.split('\n\n');
-              let currentChunk = '';
-              let chunkIndex = 1;
+              // Split by sentences - improved regex to catch all sentence endings
+              const sentences = conclusionText.match(/[^.!?]+[.!?]+[\s]*/g);
               
-              for (const para of paragraphs) {
-                // If adding this paragraph would exceed 1024, save current chunk and start new
-                if (currentChunk.length + para.length + 2 > 1024 && currentChunk.length > 0) {
-                  const chunkSize = `🔮 Kết luận (${chunkIndex})`.length + currentChunk.length;
-                  if (currentSize + chunkSize <= maxEmbedSize && fieldCount < 25) {
+              // If regex fails to match (no sentence endings), split by length
+              if (!sentences || sentences.length === 0) {
+                let remainingText = conclusionText;
+                let chunkIndex = 1;
+                
+                while (remainingText.length > 0 && fieldCount < 25) {
+                  const chunkText = remainingText.substring(0, 1020); // Leave room for "..."
+                  const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + chunkText.length;
+                  
+                  if (currentSize + chunkSize <= maxEmbedSize) {
                     embed.addFields({
                       name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
-                      value: currentChunk,
+                      value: chunkText + (remainingText.length > 1020 ? '...' : ''),
                       inline: false
                     });
                     currentSize += chunkSize;
                     fieldCount++;
                     chunkIndex++;
-                    currentChunk = '';
+                    remainingText = remainingText.substring(1020);
                   } else {
-                    break; // No more room
+                    break;
                   }
                 }
+              } else {
+                // Split by sentences
+                let currentChunk = '';
+                let chunkIndex = 1;
                 
-                currentChunk += (currentChunk ? '\n\n' : '') + para;
-              }
-              
-              // Add remaining chunk
-              if (currentChunk && fieldCount < 25) {
-                const chunkSize = `🔮 Kết luận (${chunkIndex})`.length + currentChunk.length;
-                if (currentSize + chunkSize <= maxEmbedSize) {
-                  embed.addFields({
-                    name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
-                    value: currentChunk.substring(0, 1024),
-                    inline: false
-                  });
-                  currentSize += chunkSize;
-                  fieldCount++;
+                for (const sentence of sentences) {
+                  // If adding this sentence would exceed 1024, save current chunk and start new
+                  if (currentChunk.length + sentence.length > 1020 && currentChunk.length > 0) {
+                    const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + currentChunk.length;
+                    if (currentSize + chunkSize <= maxEmbedSize && fieldCount < 25) {
+                      embed.addFields({
+                        name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
+                        value: currentChunk.trim(),
+                        inline: false
+                      });
+                      currentSize += chunkSize;
+                      fieldCount++;
+                      chunkIndex++;
+                      currentChunk = '';
+                    } else {
+                      break; // No more room
+                    }
+                  }
+                  
+                  currentChunk += sentence;
+                }
+                
+                // Add remaining chunk (IMPORTANT: don't forget the last chunk!)
+                if (currentChunk.trim() && fieldCount < 25) {
+                  const finalChunk = currentChunk.trim().substring(0, 1024);
+                  const chunkSize = (chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`).length + finalChunk.length;
+                  if (currentSize + chunkSize <= maxEmbedSize) {
+                    embed.addFields({
+                      name: chunkIndex === 1 ? '🔮 Kết luận' : `🔮 Kết luận (${chunkIndex})`,
+                      value: finalChunk,
+                      inline: false
+                    });
+                    currentSize += chunkSize;
+                    fieldCount++;
+                  }
                 }
               }
             } else {
