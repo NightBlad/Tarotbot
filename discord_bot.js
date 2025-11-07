@@ -89,6 +89,21 @@ try {
   console.warn('Could not load card_data.js for autocomplete:', e.message);
 }
 
+// Load shortnames from text file for quick autocomplete
+let SHORTNAMES = [];
+try {
+  const fs = require('fs');
+  const path = require('path');
+  const shortnameFile = path.join(__dirname, 'shortname_data.txt');
+  if (fs.existsSync(shortnameFile)) {
+    const content = fs.readFileSync(shortnameFile, 'utf8');
+    SHORTNAMES = content.split('\n').map(s => s.trim()).filter(Boolean);
+    console.log(`Loaded ${SHORTNAMES.length} shortnames for autocomplete`);
+  }
+} catch (e) {
+  console.warn('Could not load shortname_data.txt for autocomplete:', e.message);
+}
+
 function createClient(includeMessageContent) {
   const intents = new IntentsBitField();
   intents.add(IntentsBitField.Flags.Guilds, IntentsBitField.Flags.GuildMessages);
@@ -366,8 +381,28 @@ function registerEventHandlers(botClient) {
         const focused = interaction.options.getFocused(true);
         if (!focused || focused.name !== 'sig') return;
         const val = String(focused.value || '').toLowerCase();
-        if (!Array.isArray(CARDS) || CARDS.length === 0) { await interaction.respond([]); return; }
-        const matches = CARDS.filter(c => (c.name && c.name.toLowerCase().includes(val)) || (c.name_short && c.name_short.toLowerCase().includes(val))).slice(0,25).map(c => ({ name: `${c.name} (${c.name_short})`, value: c.name_short }));
+        
+        // Try shortnames first (faster), fall back to full card data
+        let matches = [];
+        if (SHORTNAMES.length > 0) {
+          // Filter shortnames that match the input
+          const filtered = SHORTNAMES.filter(sn => sn.toLowerCase().includes(val));
+          // Convert to autocomplete format: try to get full name from CARDS, or use shortname as display
+          matches = filtered.slice(0, 25).map(sn => {
+            // Try to find the card with this shortname to get the full name
+            const card = CARDS.cards && CARDS.cards.find(c => c.name_short === sn);
+            const displayName = card ? `${card.name} (${sn})` : sn;
+            return { name: displayName, value: sn };
+          });
+        } else if (Array.isArray(CARDS) || (CARDS.cards && Array.isArray(CARDS.cards))) {
+          // Fallback to original CARDS array
+          const cardsArray = Array.isArray(CARDS) ? CARDS : (CARDS.cards || []);
+          matches = cardsArray
+            .filter(c => (c.name && c.name.toLowerCase().includes(val)) || (c.name_short && c.name_short.toLowerCase().includes(val)))
+            .slice(0, 25)
+            .map(c => ({ name: `${c.name} (${c.name_short})`, value: c.name_short }));
+        }
+        
         await interaction.respond(matches);
         return;
       }
