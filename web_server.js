@@ -15,7 +15,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // API Config endpoint - provides frontend with necessary URLs
 app.get('/api/config', (req, res) => {
     res.json({
-        tarotApiUrl: process.env.TAROT_API_URL || 'http://localhost:3000',
+        tarotApiUrl: process.env.TAROT_API_URL || 'https://tarotbot-astc.onrender.com',
         langflowUrl: process.env.LANGFLOW_API_URL || null,
         langflowKey: process.env.LANGFLOW_API_KEY || null
     });

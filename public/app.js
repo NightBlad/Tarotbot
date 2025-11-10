@@ -2,7 +2,7 @@
 class TarotApp {
     constructor() {
         this.currentSpread = null;
-        this.apiUrl = 'http://localhost:3000'; // Change to your Tarot API URL
+        this.apiUrl = 'https://tarotbot-astc.onrender.com'; // Tarot API URL
         this.langflowUrl = null; // Will be set from environment or config
         this.langflowKey = null;
         this.currentReading = null;
@@ -394,6 +394,12 @@ class TarotApp {
 
     async loadCardSuggestions() {
         try {
+            // Only load if tarot API is configured
+            if (!this.apiUrl || this.apiUrl.includes('localhost')) {
+                console.log('Tarot API not available - skipping card suggestions');
+                return;
+            }
+            
             const response = await fetch(`${this.apiUrl}/cards`);
             if (response.ok) {
                 const data = await response.json();
@@ -408,7 +414,7 @@ class TarotApp {
                 });
             }
         } catch (e) {
-            console.warn('Could not load card suggestions:', e);
+            console.log('Card suggestions not available:', e.message);
         }
     }
 
@@ -524,10 +530,16 @@ class TarotApp {
         });
 
         if (!response.ok) {
-            throw new Error(`LangFlow API error: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`LangFlow API error: ${response.status} - ${errorText}`);
         }
 
-        const data = await response.json();
+        const responseText = await response.text();
+        if (!responseText || responseText.trim() === '') {
+            throw new Error('Empty response from LangFlow API');
+        }
+
+        const data = JSON.parse(responseText);
         
         // Extract text from LangFlow response
         return this.extractLangFlowOutput(data);
