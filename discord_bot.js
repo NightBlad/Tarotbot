@@ -1077,43 +1077,86 @@ function registerEventHandlers(botClient) {
             }
           }
           
-          // Add conclusion as a SINGLE field (no splitting into multiple parts)
+          // Add conclusion - split into multiple fields by paragraphs
           if (conclusion.trim() && fieldCount < 25) {
             const conclusionText = conclusion.trim();
             
-            // If conclusion is longer than 2048, truncate with ellipsis
-            // We'll use the split-message approach instead of multiple conclusion fields
-            if (conclusionText.length > 2048) {
-              const truncated = conclusionText.substring(0, 2044) + '...';
-              const conclusionSize = '🔮 Kết luận'.length + truncated.length;
+            // Split conclusion into paragraphs (separated by double newlines or single newlines)
+            const paragraphs = conclusionText.split(/\n\n+/).filter(p => p.trim());
+            
+            // If no double-newline paragraphs found, try splitting by single newlines for long text
+            const effectiveParagraphs = paragraphs.length > 1 ? paragraphs : 
+              (conclusionText.length > 1500 ? conclusionText.split(/\n/).filter(p => p.trim()) : [conclusionText]);
+            
+            let currentParagraphBatch = '';
+            let isFirstConclusionField = true;
+            
+            for (let i = 0; i < effectiveParagraphs.length; i++) {
+              const para = effectiveParagraphs[i].trim();
               
-              if (currentSize + conclusionSize <= maxEmbedSize) {
-                embed.addFields({
-                  name: '🔮 Kết luận',
-                  value: truncated,
-                  inline: false
-                });
-                currentSize += conclusionSize;
-                fieldCount++;
+              // Check if adding this paragraph would exceed field limit
+              const testBatch = currentParagraphBatch ? `${currentParagraphBatch}\n\n${para}` : para;
+              
+              if (testBatch.length <= 3060 && fieldCount < 24) {
+                // Can add this paragraph to current batch
+                currentParagraphBatch = testBatch;
                 
-                // Store remaining conclusion for continuation embed if needed
-                const remainingConclusion = conclusionText.substring(2044);
-                if (remainingConclusion.length > 0) {
-                  // We'll handle this in the split message logic below
-                  embed._remainingConclusion = remainingConclusion;
+                // If this is the last paragraph, add the field
+                if (i === effectiveParagraphs.length - 1) {
+                  // First field has name, others are empty (using zero-width space)
+                  const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
+                  const conclusionSize = fieldName.length + currentParagraphBatch.length;
+                  
+                  if (currentSize + conclusionSize <= maxEmbedSize) {
+                    embed.addFields({
+                      name: fieldName,
+                      value: currentParagraphBatch,
+                      inline: false
+                    });
+                    currentSize += conclusionSize;
+                    fieldCount++;
+                  }
                 }
-              }
-            } else {
-              // Short conclusion, add as single field
-              const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
-              if (currentSize + conclusionSize <= maxEmbedSize) {
-                embed.addFields({
-                  name: '🔮 Kết luận',
-                  value: conclusionText,
-                  inline: false
-                });
-                currentSize += conclusionSize;
-                fieldCount++;
+              } else {
+                // Current batch is full, add it as a field
+                if (currentParagraphBatch) {
+                  // First field has name, others are empty (using zero-width space)
+                  const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
+                  const conclusionSize = fieldName.length + currentParagraphBatch.length;
+                  
+                  if (currentSize + conclusionSize <= maxEmbedSize && fieldCount < 24) {
+                    embed.addFields({
+                      name: fieldName,
+                      value: currentParagraphBatch,
+                      inline: false
+                    });
+                    currentSize += conclusionSize;
+                    fieldCount++;
+                    isFirstConclusionField = false;
+                  } else {
+                    // Can't fit more fields, stop
+                    break;
+                  }
+                }
+                
+                // Start new batch with current paragraph
+                currentParagraphBatch = para;
+                
+                // If this is the last paragraph, add it
+                if (i === effectiveParagraphs.length - 1) {
+                  const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
+                  const conclusionSize = fieldName.length + currentParagraphBatch.length;
+                  
+                  if (currentSize + conclusionSize <= maxEmbedSize && fieldCount < 24) {
+                    embed.addFields({
+                      name: fieldName,
+                      value: currentParagraphBatch.substring(0, 3060),
+                      inline: false
+                    });
+                    currentSize += conclusionSize;
+                    fieldCount++;
+                  }
+                }
               }
             }
           }
