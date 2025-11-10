@@ -810,7 +810,8 @@ function registerEventHandlers(botClient) {
           cleanText = cleanText.replace(/\n{3,}/g, '\n\n').trim();
 
           // Parse the text to extract title, card info, and conclusion
-          const lines = cleanText.split('\n').filter(l => l.trim());
+          // Keep newlines intact for proper paragraph formatting
+          const lines = cleanText.split('\n');
           
           // Try to extract title (first line usually contains spread type)
           let title = 'Kết quả bói Tarot';
@@ -823,6 +824,16 @@ function registerEventHandlers(botClient) {
           
           for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
+            
+            // Skip empty lines but preserve them in description/conclusion
+            if (!line) {
+              if (inConclusionBlock) {
+                conclusion += '\n';
+              } else if (description.length < 2000 && !currentSection) {
+                description += '\n';
+              }
+              continue;
+            }
             
             // First line is usually the title
             if (i === 0 && line.length < 100) {
@@ -915,7 +926,7 @@ function registerEventHandlers(botClient) {
             }
             
             // Build description (only if not in conclusion and not a card line)
-            if (!line.toLowerCase().startsWith('trải bài') && description.length < 2000) {
+            if (!line.toLowerCase().startsWith('trải bài') && description.length < 4000) {
               description += line + '\n';
             }
           }
@@ -991,9 +1002,9 @@ function registerEventHandlers(botClient) {
             return size;
           }
           
-          // Add description with size checking (minimize to save space for fields)
-          if (description.trim() && description.trim().length > 50) {
-            const maxDescLen = Math.min(2048, 2000 - title.length); // Increased from 4000 to allow more field content
+          // Add description with size checking (allow full Discord limit for description)
+          if (description.trim()) {
+            const maxDescLen = 4096; // Discord's max description length
             embed.setDescription(description.trim().substring(0, maxDescLen));
           }
           
