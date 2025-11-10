@@ -150,23 +150,61 @@ async function renderCardsToImage(cards, options = {}) {
     </html>
   `;
   
+  // Find Chrome executable path
+  function findChromeExecutable() {
+    const candidates = [
+      // Render.com / Linux paths (newer version)
+      '/opt/render/.cache/puppeteer/chrome/linux-142.0.7444.61/chrome-linux64/chrome',
+      '/opt/render/.cache/puppeteer/chrome/linux-128.0.6613.119/chrome-linux64/chrome',
+      // Standard Linux paths
+      path.join(process.env.HOME || '', '.cache', 'puppeteer', 'chrome', 'linux-142.0.7444.61', 'chrome-linux64', 'chrome'),
+      path.join(process.env.HOME || '', '.cache', 'puppeteer', 'chrome', 'linux-128.0.6613.119', 'chrome-linux64', 'chrome'),
+      // Windows paths
+      path.join(process.env.USERPROFILE || '', '.cache', 'puppeteer', 'chrome', 'win64-142.0.7444.61', 'chrome-win64', 'chrome.exe'),
+      path.join(process.env.USERPROFILE || '', '.cache', 'puppeteer', 'chrome', 'win64-128.0.6613.119', 'chrome-win64', 'chrome.exe'),
+      // Workspace paths
+      path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-142.0.7444.61', 'chrome-linux64', 'chrome'),
+      path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-128.0.6613.119', 'chrome-linux64', 'chrome')
+    ];
+    
+    for (const p of candidates) {
+      try {
+        if (fs.existsSync(p)) {
+          console.log('Found Chrome executable at:', p);
+          return p;
+        }
+      } catch (_) {}
+    }
+    
+    return null;
+  }
+  
+  const executablePath = findChromeExecutable();
+  
   // Render to image
+  const puppeteerConfig = {
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--disable-gpu'
+    ],
+    headless: true
+  };
+  
+  // Add executablePath if found
+  if (executablePath) {
+    puppeteerConfig.executablePath = executablePath;
+  }
+  
   const image = await nodeHtmlToImage({
     html,
     quality: 100,
     type: 'png',
-    puppeteerArgs: {
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu'
-      ],
-      headless: true
-    },
+    puppeteerArgs: puppeteerConfig,
     encoding: 'buffer'
   });
   

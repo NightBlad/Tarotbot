@@ -1042,10 +1042,10 @@ function registerEventHandlers(botClient) {
           if (imgs.length > 1) {
             const additionalImgs = imgs.slice(1, 6); // Maximum 5 additional images
             for (let i = 0; i < additionalImgs.length && fieldCount < 25; i++) {
-              const imgSize = `🖼️ Hình ${i + 2}`.length + additionalImgs[i].length;
+              const imgSize = `🖼️ Hình ${i + 1}`.length + additionalImgs[i].length;
               if (currentSize + imgSize <= maxEmbedSize) {
                 embed.addFields({
-                  name: `🖼️ Hình ${i + 2}`,
+                  name: `🖼️ Hình ${i + 1}`,
                   value: additionalImgs[i],
                   inline: false
                 });
