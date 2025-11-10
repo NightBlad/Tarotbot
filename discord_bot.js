@@ -956,17 +956,17 @@ function registerEventHandlers(botClient) {
             return size;
           }
           
-          // Add description with size checking
-          if (description.trim()) {
-            const maxDescLen = Math.min(4096, 4000 - title.length); // leave room for other content
+          // Add description with size checking (minimize to save space for fields)
+          if (description.trim() && description.trim().length > 50) {
+            const maxDescLen = Math.min(2048, 2000 - title.length); // Increased from 4000 to allow more field content
             embed.setDescription(description.trim().substring(0, maxDescLen));
           }
           
           // Add fields for card meanings (validate each field and check total size)
           let currentSize = getEmbedSize(embed);
-          const maxEmbedSize = 5800; // safety margin below 6000
+          const maxEmbedSize = 5900; // Increased from 5800 to maximize content display
           let fieldCount = 0;
-          const maxFields = 10; // Reserve more fields for conclusion parts
+          const maxFields = 24; // Increased to 24 (close to Discord's 25 max) to display more content
           let wasTruncated = false;
           
           for (const field of fields) {
