@@ -1072,31 +1072,12 @@ function registerEventHandlers(botClient) {
             }
           }
           
-          // Add first image as main embed image (prefer rendered composite image)
+          // Add composite image as main embed image (only show combined image, not individual URLs)
           if (renderedImagePath) {
             // Use rendered composite image
             embed.setImage(`attachment://${path.basename(renderedImagePath)}`);
-          } else if (imgs.length > 0) {
-            // Fallback to first card image
-            embed.setImage(imgs[0]);
           }
-          
-          // Add additional images as separate fields (thumbnail style URLs)
-          if (imgs.length > 1) {
-            const additionalImgs = imgs.slice(1, 6); // Maximum 5 additional images
-            for (let i = 0; i < additionalImgs.length && fieldCount < 25; i++) {
-              const imgSize = `🖼️ Hình ${i + 1}`.length + additionalImgs[i].length;
-              if (currentSize + imgSize <= maxEmbedSize) {
-                embed.addFields({
-                  name: `🖼️ Hình ${i + 1}`,
-                  value: additionalImgs[i],
-                  inline: false
-                });
-                currentSize += imgSize;
-                fieldCount++;
-              }
-            }
-          }
+          // Note: Individual card image URLs are no longer displayed as fields
           
           // If question was provided, add as footer (only if size allows)
           if (question) {
@@ -1125,9 +1106,9 @@ function registerEventHandlers(botClient) {
               firstEmbed.setDescription(description.trim().substring(0, 4096));
             }
             
-            // Add first image to first embed
-            if (imgs.length > 0) {
-              firstEmbed.setImage(imgs[0]);
+            // Add composite image to first embed (only if available)
+            if (renderedImagePath) {
+              firstEmbed.setImage(`attachment://${path.basename(renderedImagePath)}`);
             }
             
             // Add fields to first embed until we hit limit
