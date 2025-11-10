@@ -209,10 +209,41 @@ function summarizeSpread(data) {
 // We also add a session_id via crypto.randomUUID(). If your endpoint differs, tell me the exact spec and I'll adapt.
 async function callLangFlow(flow, input) {
   // Build payload following the LangFlow run API example
+  let inputValue = typeof input === 'string' ? input : JSON.stringify(input);
+  
+  // LangFlow API has a 1024 character limit on input_value
+  // If input exceeds this, truncate or summarize it
+  const MAX_INPUT_LENGTH = 1024;
+  if (inputValue.length > MAX_INPUT_LENGTH) {
+    console.warn(`Input length ${inputValue.length} exceeds LangFlow limit ${MAX_INPUT_LENGTH}. Truncating...`);
+    
+    // Try to parse as JSON and keep only essential fields
+    try {
+      const parsed = JSON.parse(inputValue);
+      const essential = {
+        spread: parsed.spread,
+        question: parsed.question ? parsed.question.substring(0, 200) : '',
+        n: parsed.n,
+        sig: parsed.sig
+      };
+      inputValue = JSON.stringify(essential);
+      
+      // If still too long, truncate the stringified version
+      if (inputValue.length > MAX_INPUT_LENGTH) {
+        inputValue = inputValue.substring(0, MAX_INPUT_LENGTH - 3) + '...';
+      }
+    } catch (_) {
+      // Not JSON, just truncate
+      inputValue = inputValue.substring(0, MAX_INPUT_LENGTH - 3) + '...';
+    }
+    
+    console.log(`Truncated input to ${inputValue.length} characters`);
+  }
+  
   const payload = {
     output_type: 'text',
     input_type: 'chat',
-    input_value: typeof input === 'string' ? input : JSON.stringify(input)
+    input_value: inputValue
   };
   try { payload.session_id = crypto.randomUUID(); } catch (_) { /* ignore if unavailable */ }
 
@@ -822,7 +853,7 @@ function registerEventHandlers(botClient) {
               const parts = line.split('—');
               if (parts.length >= 2) {
                 const fieldName = parts[0].trim().substring(0, 256); // ensure name <= 256 chars
-                const fieldValue = parts.slice(1).join('—').trim().substring(0, 2048); // ensure value <= 2048 chars
+                const fieldValue = parts.slice(1).join('—').trim().substring(0, 1020); // ensure value <= 1024 chars (Discord limit)
                 if (fieldName && fieldValue) {
                   fields.push({
                     name: fieldName,
@@ -841,7 +872,7 @@ function registerEventHandlers(botClient) {
               if (advice) {
                 fields.push({
                   name: '💡 Lời khuyên',
-                  value: advice.substring(0, 2048),
+                  value: advice.substring(0, 1020), // Discord limit 1024 chars
                   inline: false
                 });
               }
@@ -946,17 +977,25 @@ function registerEventHandlers(botClient) {
             }
             
             // Double-check field constraints before adding
+            // Discord limit: field.name max 256, field.value max 1024 chars
             if (field.name && field.name.length > 0 && field.name.length <= 256 &&
-                field.value && field.value.length > 0 && field.value.length <= 2048) {
+                field.value && field.value.length > 0) {
               
-              const fieldSize = field.name.length + field.value.length;
+              // Truncate field value if it exceeds Discord's 1024 char limit
+              let fieldValue = field.value;
+              if (fieldValue.length > 1024) {
+                fieldValue = fieldValue.substring(0, 1020) + '...';
+                console.log(`Truncated field "${field.name}" from ${field.value.length} to 1024 chars`);
+              }
+              
+              const fieldSize = field.name.length + fieldValue.length;
               
               // Check if adding this field would exceed the size limit
               if (currentSize + fieldSize > maxEmbedSize) {
                 wasTruncated = true;
                 // If no fields added yet, add at least a truncated version of this one
                 if (fieldCount === 0) {
-                  const truncatedValue = field.value.substring(0, Math.min(2048, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
+                  const truncatedValue = fieldValue.substring(0, Math.min(1020, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
                   embed.addFields({
                     name: field.name,
                     value: truncatedValue,
@@ -968,7 +1007,11 @@ function registerEventHandlers(botClient) {
                 break;
               }
               
-              embed.addFields(field);
+              embed.addFields({
+                name: field.name,
+                value: fieldValue,
+                inline: false
+              });
               currentSize += fieldSize;
               fieldCount++;
             }
