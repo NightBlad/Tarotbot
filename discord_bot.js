@@ -853,8 +853,43 @@ function registerEventHandlers(botClient) {
               const parts = line.split('—');
               if (parts.length >= 2) {
                 const fieldName = parts[0].trim().substring(0, 256); // ensure name <= 256 chars
-                const fieldValue = parts.slice(1).join('—').trim().substring(0, 1020); // ensure value <= 1024 chars (Discord limit)
-                if (fieldName && fieldValue) {
+                let fieldValue = parts.slice(1).join('—').trim();
+                
+                // Split long content into multiple fields if needed
+                const MAX_FIELD_LENGTH = 1020;
+                if (fieldValue.length > MAX_FIELD_LENGTH) {
+                  // Split into chunks at sentence boundaries
+                  const sentences = fieldValue.split(/([.!?]\s+)/);
+                  let currentChunk = '';
+                  let chunkIndex = 0;
+                  
+                  for (let i = 0; i < sentences.length; i++) {
+                    const sentence = sentences[i];
+                    if (currentChunk.length + sentence.length <= MAX_FIELD_LENGTH) {
+                      currentChunk += sentence;
+                    } else {
+                      if (currentChunk) {
+                        fields.push({
+                          name: chunkIndex === 0 ? fieldName : `${fieldName} (tiếp ${chunkIndex + 1})`,
+                          value: currentChunk.trim(),
+                          inline: false
+                        });
+                        chunkIndex++;
+                      }
+                      currentChunk = sentence;
+                    }
+                  }
+                  
+                  // Add remaining chunk
+                  if (currentChunk.trim()) {
+                    fields.push({
+                      name: chunkIndex === 0 ? fieldName : `${fieldName} (tiếp ${chunkIndex + 1})`,
+                      value: currentChunk.trim().substring(0, MAX_FIELD_LENGTH),
+                      inline: false
+                    });
+                  }
+                } else {
+                  // Short enough, add as single field
                   fields.push({
                     name: fieldName,
                     value: fieldValue,
