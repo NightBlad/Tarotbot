@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Khám phá vận mệnh qua lá bài Tarot huyền bí. Bói bài online miễn phí với AI.">
+    <meta name="theme-color" content="#7B68EE">
+    <title>✨ Tarot Mystic - Bói Bài Tarot Online</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="alternate icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/manifest.json">
+    
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Animated Background -->
+    <div class="stars-container">
+        <div class="stars"></div>
+        <div class="stars2"></div>
+        <div class="stars3"></div>
+    </div>
+    
+    <!-- Particle Background -->
+    <canvas id="particleCanvas"></canvas>
+
+    <!-- Audio Player (Hidden) -->
+    <audio id="bgMusic" loop preload="auto">
+        <!-- Local file (download first!) -->
+        <source src="/music/background.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <!-- Control Buttons -->
+            <div class="header-controls">
+                <button id="musicToggle" class="control-btn" title="Bật/Tắt nhạc nền">
+                    <span class="icon">🎵</span>
+                </button>
+                <button id="themeToggle" class="control-btn" title="Chuyển đổi theme">
+                    <span class="icon">🌙</span>
+                </button>
+                <button id="historyToggle" class="control-btn" title="Xem lịch sử">
+                    <span class="icon">📜</span>
+                </button>
+            </div>
+
+            <h1 class="title">
+                <span class="mystical-icon">✨</span>
+                K Tarot Mystic
+                <span class="mystical-icon">🔮</span>
+            </h1>
+            <p class="subtitle">Khám phá vận mệnh qua lá bài Tarot huyền bí</p>
+        </header>
+
+        <!-- Home Page - Spread Selection -->
+        <div id="homePage" class="page active">
+            <div class="spread-grid">
+                <div class="spread-card" data-spread="one">
+                    <div class="card-icon">🎴</div>
+                    <h3>Một Lá Bài</h3>
+                    <p>Câu trả lời nhanh cho một câu hỏi</p>
+                </div>
+
+                <div class="spread-card" data-spread="three">
+                    <div class="card-icon">🔮</div>
+                    <h3>Ba Lá Bài</h3>
+                    <p>Quá khứ - Hiện tại - Tương lai</p>
+                </div>
+
+                <div class="spread-card" data-spread="five">
+                    <div class="card-icon">⭐</div>
+                    <h3>Năm Lá Bài</h3>
+                    <p>Phân tích sâu tình huống</p>
+                </div>
+
+                <div class="spread-card" data-spread="celtic-cross">
+                    <div class="card-icon">✝️</div>
+                    <h3>Celtic Cross</h3>
+                    <p>Trải bài truyền thống 10 lá</p>
+                </div>
+
+                <div class="spread-card" data-spread="past-present-future">
+                    <div class="card-icon">⏳</div>
+                    <h3>Quá Khứ/Hiện Tại/Tương Lai</h3>
+                    <p>Ba giai đoạn của cuộc đời</p>
+                </div>
+
+                <div class="spread-card" data-spread="mind-body-spirit">
+                    <div class="card-icon">🧘</div>
+                    <h3>Tâm/Thân/Thần</h3>
+                    <p>Cân bằng nội tâm</p>
+                </div>
+
+                <div class="spread-card" data-spread="existing-relationship">
+                    <div class="card-icon">💑</div>
+                    <h3>Mối Quan Hệ Hiện Tại</h3>
+                    <p>Phân tích tình cảm</p>
+                </div>
+
+                <div class="spread-card" data-spread="potential-relationship">
+                    <div class="card-icon">💝</div>
+                    <h3>Mối Quan Hệ Tiềm Năng</h3>
+                    <p>Khả năng phát triển tình cảm</p>
+                </div>
+
+                <div class="spread-card" data-spread="making-decision">
+                    <div class="card-icon">🤔</div>
+                    <h3>Ra Quyết Định</h3>
+                    <p>Lựa chọn đúng đắn</p>
+                </div>
+
+                <div class="spread-card" data-spread="law-of-attraction">
+                    <div class="card-icon">🌟</div>
+                    <h3>Luật Hấp Dẫn</h3>
+                    <p>Thu hút điều tốt đẹp</p>
+                </div>
+
+                <div class="spread-card" data-spread="release-retain">
+                    <div class="card-icon">🔄</div>
+                    <h3>Buông Bỏ & Giữ Lại</h3>
+                    <p>Cân bằng cuộc sống</p>
+                </div>
+
+                <div class="spread-card" data-spread="asset-hindrance">
+                    <div class="card-icon">⚖️</div>
+                    <h3>Lợi Thế & Trở Ngại</h3>
+                    <p>Đánh giá tình huống</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reading Page -->
+        <div id="readingPage" class="page">
+            <button class="back-btn" id="backBtn">
+                <span>←</span> Quay lại
+            </button>
+
+            <div class="reading-container">
+                <h2 id="spreadTitle" class="spread-title"></h2>
+                
+                <!-- Question Input -->
+                <div class="input-section">
+                    <div class="input-group">
+                        <label for="questionInput">
+                            <span class="label-icon">💭</span>
+                            Câu hỏi của bạn (tùy chọn)
+                        </label>
+                        <textarea 
+                            id="questionInput" 
+                            placeholder="Nhập câu hỏi bạn muốn hỏi lá bài..."
+                            rows="3"
+                        ></textarea>
+                    </div>
+
+                    <!-- Significator Selection (only for law-of-attraction) -->
+                    <div class="input-group" id="sigGroup" style="display: none;">
+                        <label for="sigInput">
+                            <span class="label-icon">🎯</span>
+                            Significator (tùy chọn)
+                        </label>
+                        <input 
+                            type="text" 
+                            id="sigInput" 
+                            placeholder="Nhập tên ngắn của lá bài significator..."
+                            list="cardSuggestions"
+                        >
+                        <datalist id="cardSuggestions">
+                            <!-- Will be populated dynamically -->
+                        </datalist>
+                    </div>
+
+                    <button class="divine-btn" id="divineBtn">
+                        <span class="btn-text">Bắt Đầu Bói</span>
+                        <span class="btn-icon">🔮</span>
+                    </button>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading" id="loadingState" style="display: none;">
+                    <div class="crystal-ball">
+                        <div class="glow"></div>
+                        <div class="inner-glow"></div>
+                    </div>
+                    <p class="loading-text">Đang kết nối với vũ trụ...</p>
+                </div>
+
+                <!-- Card Shuffle Animation -->
+                <div class="shuffle-animation" id="shuffleAnimation" style="display: none;">
+                    <div class="shuffle-container">
+                        <div class="shuffle-card"></div>
+                        <div class="shuffle-card"></div>
+                        <div class="shuffle-card"></div>
+                        <div class="shuffle-card"></div>
+                        <div class="shuffle-card"></div>
+                    </div>
+                    <p class="shuffle-text">Đang xào bài...</p>
+                </div>
+
+                <!-- Results Section -->
+                <div id="resultsSection" style="display: none;">
+                    <!-- Share Button -->
+                    <div class="share-section">
+                        <button id="shareBtn" class="share-btn">
+                            <span class="icon">📤</span>
+                            Chia sẻ kết quả
+                        </button>
+                        <button id="saveBtn" class="share-btn secondary">
+                            <span class="icon">💾</span>
+                            Lưu vào lịch sử
+                        </button>
+                    </div>
+
+                    <!-- Tarot Cards Display -->
+                    <div class="cards-display" id="cardsDisplay">
+                        <!-- Cards will be rendered here -->
+                    </div>
+
+                    <!-- Reading Results -->
+                    <div class="results-content" id="resultsContent">
+                        <!-- Results will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Sidebar -->
+        <div id="historySidebar" class="history-sidebar">
+            <div class="history-header">
+                <h2>📜 Lịch Sử Bói Bài</h2>
+                <button id="closeHistory" class="close-btn">✕</button>
+            </div>
+            <div class="history-content" id="historyContent">
+                <!-- History items will be rendered here -->
+            </div>
+            <div class="history-footer">
+                <button id="clearHistory" class="clear-btn">🗑️ Xóa tất cả</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Modal -->
+    <div id="shareModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📤 Chia Sẻ Kết Quả</h2>
+                <button class="close-modal">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="share-options">
+                    <button class="share-option" data-platform="copy">
+                        <span class="icon">📋</span>
+                        <span>Sao chép link</span>
+                    </button>
+                    <button class="share-option" data-platform="facebook">
+                        <span class="icon">📘</span>
+                        <span>Facebook</span>
+                    </button>
+                    <button class="share-option" data-platform="twitter">
+                        <span class="icon">🐦</span>
+                        <span>Twitter</span>
+                    </button>
+                    <button class="share-option" data-platform="whatsapp">
+                        <span class="icon">💬</span>
+                        <span>WhatsApp</span>
+                    </button>
+                    <button class="share-option" data-platform="telegram">
+                        <span class="icon">✈️</span>
+                        <span>Telegram</span>
+                    </button>
+                    <button class="share-option" data-platform="email">
+                        <span class="icon">📧</span>
+                        <span>Email</span>
+                    </button>
+                </div>
+                <div class="share-link-container" style="display: none;">
+                    <input type="text" id="shareLink" readonly>
+                    <button id="copyLinkBtn">Sao chép</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>✨ K Tarot Mystic © 2025 - Khám phá bản thân qua nghệ thuật bói Tarot ✨</p>
+    </footer>
+
+    <script src="particles.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,1105 @@
+/* ==================== RESET & BASE ==================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary-color: #7B68EE;
+    --secondary-color: #9370DB;
+    --accent-color: #FFD700;
+    --dark-bg: #0a0e27;
+    --card-bg: rgba(25, 31, 61, 0.8);
+    --text-primary: #ffffff;
+    --text-secondary: #b8b5ff;
+    --glow-color: rgba(123, 104, 238, 0.5);
+}
+
+/* Light Theme Variables */
+body.light-theme {
+    --dark-bg: #f0f4f8;
+    --card-bg: rgba(255, 255, 255, 0.9);
+    --text-primary: #1a202c;
+    --text-secondary: #4a5568;
+    --glow-color: rgba(123, 104, 238, 0.3);
+}
+
+body.light-theme .stars-container {
+    opacity: 0.3;
+}
+
+body.light-theme #particleCanvas {
+    opacity: 0.5;
+}
+
+body {
+    font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--dark-bg);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    min-height: 100vh;
+    position: relative;
+}
+
+/* ==================== ANIMATED BACKGROUND ==================== */
+.stars-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.stars, .stars2, .stars3 {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
+.stars {
+    background: radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 60px 70px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 50px 50px, #ddd, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 130px 80px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 90px 10px, #eee, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    animation: twinkle 5s ease-in-out infinite;
+}
+
+.stars2 {
+    background: radial-gradient(1px 1px at 100px 100px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 150px 150px, #eee, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 180px 80px, #ddd, rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 300px 300px;
+    animation: twinkle 7s ease-in-out infinite;
+    animation-delay: 1s;
+}
+
+.stars3 {
+    background: radial-gradient(1px 1px at 70px 140px, var(--accent-color), rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 250px 60px, var(--primary-color), rgba(0,0,0,0));
+    background-repeat: repeat;
+    background-size: 400px 400px;
+    animation: twinkle 10s ease-in-out infinite;
+    animation-delay: 2s;
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+#particleCanvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* ==================== CONTAINER ==================== */
+.container {
+    position: relative;
+    z-index: 10;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    min-height: 100vh;
+}
+
+/* ==================== HEADER ==================== */
+.header {
+    text-align: center;
+    margin-bottom: 3rem;
+    animation: fadeInDown 1s ease-out;
+    position: relative;
+}
+
+.header-controls {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: flex;
+    gap: 1rem;
+    z-index: 100;
+}
+
+.control-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: var(--card-bg);
+    border: 2px solid var(--primary-color);
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.control-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 5px 20px var(--glow-color);
+    background: var(--primary-color);
+}
+
+.control-btn.active {
+    background: var(--primary-color);
+    box-shadow: 0 0 20px var(--glow-color);
+}
+
+.title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 3.5rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent-color), var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 0 30px var(--glow-color);
+}
+
+.mystical-icon {
+    display: inline-block;
+    animation: float 3s ease-in-out infinite;
+}
+
+.mystical-icon:last-child {
+    animation-delay: 1.5s;
+}
+
+.subtitle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    font-weight: 300;
+    letter-spacing: 2px;
+}
+
+/* ==================== PAGE TRANSITIONS ==================== */
+.page {
+    display: none;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.page.active {
+    display: block;
+}
+
+/* ==================== SPREAD GRID ==================== */
+.spread-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 2rem;
+    margin-top: 2rem;
+}
+
+.spread-card {
+    background: var(--card-bg);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+}
+
+.spread-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, transparent, var(--glow-color));
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+
+.spread-card:hover {
+    transform: translateY(-10px) scale(1.05);
+    border-color: var(--primary-color);
+    box-shadow: 0 20px 60px var(--glow-color);
+}
+
+.spread-card:hover::before {
+    opacity: 1;
+}
+
+.card-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    filter: drop-shadow(0 0 10px var(--accent-color));
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.spread-card h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.4rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.spread-card p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+/* ==================== READING PAGE ==================== */
+.back-btn {
+    background: var(--card-bg);
+    border: 2px solid var(--primary-color);
+    color: var(--text-primary);
+    padding: 0.8rem 1.5rem;
+    border-radius: 50px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    backdrop-filter: blur(10px);
+    margin-bottom: 2rem;
+}
+
+.back-btn:hover {
+    background: var(--primary-color);
+    transform: translateX(-5px);
+    box-shadow: 0 5px 20px var(--glow-color);
+}
+
+.reading-container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.spread-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    background: linear-gradient(135deg, var(--accent-color), var(--primary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 600;
+}
+
+/* ==================== INPUT SECTION ==================== */
+.input-section {
+    background: var(--card-bg);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 20px;
+    padding: 2rem;
+    margin-bottom: 3rem;
+    backdrop-filter: blur(10px);
+}
+
+.input-group {
+    margin-bottom: 1.5rem;
+}
+
+.input-group:last-of-type {
+    margin-bottom: 2rem;
+}
+
+.input-group label {
+    display: block;
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+    color: var(--accent-color);
+}
+
+.label-icon {
+    margin-right: 0.5rem;
+}
+
+.input-group textarea,
+.input-group input[type="text"] {
+    width: 100%;
+    background: rgba(10, 14, 39, 0.6);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 10px;
+    padding: 1rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-family: 'Nunito', sans-serif;
+    transition: all 0.3s;
+    resize: vertical;
+}
+
+.input-group textarea:focus,
+.input-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 20px var(--glow-color);
+}
+
+.divine-btn {
+    width: 100%;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    color: var(--text-primary);
+    padding: 1.2rem 2rem;
+    border-radius: 50px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    box-shadow: 0 10px 30px var(--glow-color);
+}
+
+.divine-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px var(--glow-color);
+}
+
+.divine-btn:active {
+    transform: translateY(-1px);
+}
+
+/* ==================== LOADING STATE ==================== */
+.loading {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.crystal-ball {
+    width: 150px;
+    height: 150px;
+    margin: 0 auto 2rem;
+    position: relative;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), var(--primary-color));
+    animation: rotate 3s linear infinite;
+}
+
+.glow {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--glow-color), transparent);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.inner-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60%;
+    height: 60%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.9), transparent);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-text {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ==================== CARDS DISPLAY ==================== */
+.cards-display {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2rem;
+    margin: 3rem 0;
+    padding: 2rem;
+    background: var(--card-bg);
+    border-radius: 20px;
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.tarot-card {
+    position: relative;
+    width: 180px;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: cardReveal 0.8s ease-out backwards;
+}
+
+.tarot-card:nth-child(1) { animation-delay: 0.1s; }
+.tarot-card:nth-child(2) { animation-delay: 0.2s; }
+.tarot-card:nth-child(3) { animation-delay: 0.3s; }
+.tarot-card:nth-child(4) { animation-delay: 0.4s; }
+.tarot-card:nth-child(5) { animation-delay: 0.5s; }
+.tarot-card:nth-child(6) { animation-delay: 0.6s; }
+.tarot-card:nth-child(7) { animation-delay: 0.7s; }
+.tarot-card:nth-child(8) { animation-delay: 0.8s; }
+.tarot-card:nth-child(9) { animation-delay: 0.9s; }
+.tarot-card:nth-child(10) { animation-delay: 1s; }
+
+.tarot-card:hover {
+    transform: translateY(-15px) scale(1.05);
+    z-index: 10;
+}
+
+.card-image-wrapper {
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 3px solid var(--accent-color);
+}
+
+.card-image-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent, var(--glow-color));
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tarot-card:hover .card-image-wrapper::before {
+    opacity: 1;
+}
+
+.card-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.card-image.reversed {
+    transform: rotate(180deg);
+}
+
+.card-position {
+    text-align: center;
+    margin-top: 1rem;
+    font-weight: 600;
+    color: var(--accent-color);
+    font-size: 0.95rem;
+}
+
+.card-name {
+    text-align: center;
+    margin-top: 0.3rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.card-orientation {
+    text-align: center;
+    margin-top: 0.2rem;
+    font-size: 0.8rem;
+    color: var(--primary-color);
+}
+
+/* ==================== RESULTS CONTENT ==================== */
+.results-content {
+    background: var(--card-bg);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.result-section {
+    margin-bottom: 2rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid rgba(123, 104, 238, 0.2);
+}
+
+.result-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.result-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.5rem;
+    color: var(--accent-color);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.result-text {
+    color: var(--text-secondary);
+    line-height: 1.8;
+    font-size: 1.05rem;
+}
+
+.conclusion-section {
+    background: rgba(123, 104, 238, 0.1);
+    border: 2px solid var(--primary-color);
+    border-radius: 15px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+}
+
+.conclusion-section .result-title {
+    color: var(--primary-color);
+}
+
+/* ==================== FOOTER ==================== */
+.footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+    position: relative;
+    z-index: 10;
+    margin-top: 4rem;
+}
+
+/* ==================== ANIMATIONS ==================== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes cardReveal {
+    from {
+        opacity: 0;
+        transform: translateY(50px) rotateY(90deg);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) rotateY(0);
+    }
+}
+
+/* ==================== SHUFFLE ANIMATION ==================== */
+.shuffle-animation {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.shuffle-container {
+    position: relative;
+    width: 200px;
+    height: 300px;
+    margin: 0 auto 2rem;
+}
+
+.shuffle-card {
+    position: absolute;
+    width: 140px;
+    height: 220px;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border-radius: 15px;
+    border: 3px solid var(--accent-color);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    top: 50%;
+    left: 50%;
+}
+
+.shuffle-card:nth-child(1) {
+    animation: shuffle1 2s ease-in-out infinite;
+}
+
+.shuffle-card:nth-child(2) {
+    animation: shuffle2 2s ease-in-out infinite;
+    animation-delay: 0.1s;
+}
+
+.shuffle-card:nth-child(3) {
+    animation: shuffle3 2s ease-in-out infinite;
+    animation-delay: 0.2s;
+}
+
+.shuffle-card:nth-child(4) {
+    animation: shuffle4 2s ease-in-out infinite;
+    animation-delay: 0.3s;
+}
+
+.shuffle-card:nth-child(5) {
+    animation: shuffle5 2s ease-in-out infinite;
+    animation-delay: 0.4s;
+}
+
+@keyframes shuffle1 {
+    0%, 100% { transform: translate(-50%, -50%) translateX(0) rotate(0deg); }
+    25% { transform: translate(-50%, -50%) translateX(-60px) rotate(-15deg); }
+    50% { transform: translate(-50%, -50%) translateX(0) rotate(0deg); }
+    75% { transform: translate(-50%, -50%) translateX(60px) rotate(15deg); }
+}
+
+@keyframes shuffle2 {
+    0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+    25% { transform: translate(-50%, -50%) translateY(-40px) rotate(10deg); }
+    50% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+    75% { transform: translate(-50%, -50%) translateY(40px) rotate(-10deg); }
+}
+
+@keyframes shuffle3 {
+    0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+    50% { transform: translate(-50%, -50%) scale(1.1) rotate(5deg); }
+}
+
+@keyframes shuffle4 {
+    0%, 100% { transform: translate(-50%, -50%) translateX(0) translateY(0); }
+    25% { transform: translate(-50%, -50%) translateX(50px) translateY(-30px); }
+    75% { transform: translate(-50%, -50%) translateX(-50px) translateY(30px); }
+}
+
+@keyframes shuffle5 {
+    0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+    50% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.shuffle-text {
+    font-size: 1.3rem;
+    color: var(--accent-color);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ==================== SHARE SECTION ==================== */
+.share-section {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.share-btn {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    color: var(--text-primary);
+    padding: 0.8rem 1.5rem;
+    border-radius: 50px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 5px 15px var(--glow-color);
+}
+
+.share-btn.secondary {
+    background: var(--card-bg);
+    border: 2px solid var(--primary-color);
+}
+
+.share-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px var(--glow-color);
+}
+
+/* ==================== HISTORY SIDEBAR ==================== */
+.history-sidebar {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 400px;
+    height: 100vh;
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border-left: 2px solid var(--primary-color);
+    z-index: 1000;
+    transition: right 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow-y: auto;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+}
+
+.history-sidebar.open {
+    right: 0;
+}
+
+.history-header {
+    padding: 1.5rem;
+    border-bottom: 2px solid var(--primary-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    z-index: 10;
+}
+
+.history-header h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    color: var(--accent-color);
+    margin: 0;
+    font-weight: 600;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    line-height: 1;
+}
+
+.close-btn:hover {
+    color: var(--accent-color);
+    transform: rotate(90deg);
+}
+
+.history-content {
+    padding: 1rem;
+}
+
+.history-item {
+    background: rgba(10, 14, 39, 0.6);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 15px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.history-item:hover {
+    border-color: var(--primary-color);
+    transform: translateX(-5px);
+    box-shadow: 0 5px 20px var(--glow-color);
+}
+
+.history-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.history-item-title {
+    font-weight: 600;
+    color: var(--accent-color);
+}
+
+.history-item-date {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.history-item-question {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.history-item-preview {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.history-footer {
+    padding: 1rem;
+    border-top: 2px solid var(--primary-color);
+    position: sticky;
+    bottom: 0;
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+}
+
+.clear-btn {
+    width: 100%;
+    background: rgba(220, 38, 38, 0.8);
+    border: none;
+    color: white;
+    padding: 0.8rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 1rem;
+}
+
+.clear-btn:hover {
+    background: rgba(220, 38, 38, 1);
+    transform: scale(1.02);
+}
+
+.empty-history {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-secondary);
+}
+
+.empty-history-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+/* ==================== SHARE MODAL ==================== */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--card-bg);
+    border: 2px solid var(--primary-color);
+    border-radius: 20px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.4s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 2px solid var(--primary-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    color: var(--accent-color);
+    margin: 0;
+    font-weight: 600;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 2rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    line-height: 1;
+}
+
+.close-modal:hover {
+    color: var(--accent-color);
+    transform: rotate(90deg);
+}
+
+.modal-body {
+    padding: 1.5rem;
+}
+
+.share-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+}
+
+.share-option {
+    background: rgba(10, 14, 39, 0.6);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 15px;
+    padding: 1.5rem 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-primary);
+}
+
+.share-option:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px var(--glow-color);
+}
+
+.share-option .icon {
+    font-size: 2rem;
+}
+
+.share-link-container {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.share-link-container input {
+    flex: 1;
+    background: rgba(10, 14, 39, 0.6);
+    border: 2px solid rgba(123, 104, 238, 0.3);
+    border-radius: 10px;
+    padding: 0.8rem;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.share-link-container button {
+    background: var(--primary-color);
+    border: none;
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.share-link-container button:hover {
+    background: var(--secondary-color);
+    transform: scale(1.05);
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+    .title {
+        font-size: 2.5rem;
+    }
+    
+    .spread-grid {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    
+    .tarot-card {
+        width: 140px;
+    }
+    
+    .container {
+        padding: 1rem;
+    }
+    
+    .spread-title {
+        font-size: 2rem;
+    }
+    
+    .header-controls {
+        position: relative;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    
+    .history-sidebar {
+        width: 100%;
+        right: -100%;
+    }
+    
+    .share-options {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .title {
+        font-size: 2rem;
+    }
+    
+    .subtitle {
+        font-size: 1rem;
+    }
+    
+    .tarot-card {
+        width: 120px;
+    }
+    
+    .control-btn {
+        width: 45px;
+        height: 45px;
+        font-size: 1.3rem;
+    }
+}

@@ -1,0 +1,166 @@
+<!-- Simple HTML file to generate favicons -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Favicon Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #fff;
+        }
+        canvas {
+            border: 2px solid #7B68EE;
+            margin: 10px;
+            image-rendering: pixelated;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .size-group {
+            background: rgba(123, 104, 238, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        h3 {
+            color: #FFD700;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔮 Tarot Mystic Favicon Generator</h1>
+    <p>Right-click on each canvas and "Save image as..." to download</p>
+    
+    <div class="container">
+        <div class="size-group">
+            <h3>16x16 (favicon.ico)</h3>
+            <canvas id="favicon16" width="16" height="16"></canvas>
+        </div>
+        
+        <div class="size-group">
+            <h3>32x32 (favicon.ico)</h3>
+            <canvas id="favicon32" width="32" height="32"></canvas>
+        </div>
+        
+        <div class="size-group">
+            <h3>180x180 (apple-touch-icon.png)</h3>
+            <canvas id="apple180" width="180" height="180"></canvas>
+        </div>
+        
+        <div class="size-group">
+            <h3>192x192 (android-chrome)</h3>
+            <canvas id="android192" width="192" height="192"></canvas>
+        </div>
+        
+        <div class="size-group">
+            <h3>512x512 (android-chrome)</h3>
+            <canvas id="android512" width="512" height="512"></canvas>
+        </div>
+    </div>
+
+    <script>
+        function drawFavicon(canvas) {
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const center = size / 2;
+            
+            // Clear
+            ctx.clearRect(0, 0, size, size);
+            
+            // Background gradient
+            const gradient = ctx.createRadialGradient(center, center, 0, center, center, size / 2);
+            gradient.addColorStop(0, '#9370DB');
+            gradient.addColorStop(1, '#4B0082');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(center, center, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Crystal ball
+            const ballY = center * 0.8;
+            const ballR = size * 0.2;
+            
+            // Outer glow
+            ctx.shadowBlur = size * 0.05;
+            ctx.shadowColor = '#E6E6FA';
+            ctx.fillStyle = '#E6E6FA';
+            ctx.beginPath();
+            ctx.arc(center, ballY, ballR, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Inner highlight
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.beginPath();
+            ctx.arc(center - ballR * 0.3, ballY - ballR * 0.3, ballR * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Stars
+            ctx.fillStyle = '#FFD700';
+            ctx.shadowBlur = size * 0.03;
+            ctx.shadowColor = '#FFD700';
+            
+            // Star positions
+            const stars = [
+                [center * 0.5, center * 0.4],
+                [center * 1.5, center * 0.5],
+                [center * 0.6, center * 1.4],
+                [center * 1.4, center * 1.4]
+            ];
+            
+            stars.forEach(([x, y]) => {
+                const starSize = size * 0.05;
+                ctx.beginPath();
+                ctx.moveTo(x, y - starSize);
+                ctx.lineTo(x + starSize, y + starSize);
+                ctx.lineTo(x - starSize, y);
+                ctx.lineTo(x + starSize, y);
+                ctx.lineTo(x - starSize, y + starSize);
+                ctx.closePath();
+                ctx.fill();
+            });
+            
+            // Mystical eye at bottom
+            const eyeY = center * 1.6;
+            const eyeW = size * 0.3;
+            const eyeH = size * 0.16;
+            
+            ctx.shadowBlur = size * 0.04;
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = size * 0.02;
+            ctx.beginPath();
+            ctx.ellipse(center, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // Eye center
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(center, eyeY, size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+        }
+        
+        // Draw all sizes
+        ['favicon16', 'favicon32', 'apple180', 'android192', 'android512'].forEach(id => {
+            const canvas = document.getElementById(id);
+            drawFavicon(canvas);
+        });
+        
+        console.log('✅ All favicons generated!');
+        console.log('📝 Right-click each canvas and save as:');
+        console.log('   - favicon16.png (for favicon.ico)');
+        console.log('   - favicon32.png (for favicon.ico)');
+        console.log('   - apple-touch-icon.png (180x180)');
+        console.log('   - android-chrome-192x192.png');
+        console.log('   - android-chrome-512x512.png');
+        console.log('');
+        console.log('💡 Use online tool to convert PNG to ICO:');
+        console.log('   https://convertio.co/png-ico/');
+    </script>
+</body>
+</html>

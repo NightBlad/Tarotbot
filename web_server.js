@@ -1,0 +1,95 @@
+// Simple Web Server for Tarot Web App
+require('dotenv').config();
+const express = require('express');
+const path = require('path');
+const cors = require('cors');
+
+const app = express();
+const PORT = process.env.WEB_PORT || 8080;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+// API Config endpoint - provides frontend with necessary URLs
+app.get('/api/config', (req, res) => {
+    res.json({
+        tarotApiUrl: process.env.TAROT_API_URL || 'http://localhost:3000',
+        langflowUrl: process.env.LANGFLOW_API_URL || null,
+        langflowKey: process.env.LANGFLOW_API_KEY || null
+    });
+});
+
+// Proxy endpoint for LangFlow (to avoid CORS issues)
+app.post('/api/langflow/:flow', async (req, res) => {
+    try {
+        const { flow } = req.params;
+        const langflowUrl = process.env.LANGFLOW_API_URL;
+        
+        if (!langflowUrl) {
+            return res.status(500).json({ error: 'LangFlow URL not configured' });
+        }
+
+        // Build full URL
+        let url = langflowUrl.replace('{flow}', encodeURIComponent(flow));
+        
+        const headers = {
+            'Content-Type': 'application/json'
+        };
+
+        // Add auth header if key is present
+        const langflowKey = process.env.LANGFLOW_API_KEY;
+        if (langflowKey) {
+            const headerName = process.env.LANGFLOW_AUTH_HEADER || 'Authorization';
+            if (headerName.toLowerCase() === 'authorization') {
+                headers[headerName] = langflowKey.startsWith('Bearer ') ? langflowKey : `Bearer ${langflowKey}`;
+            } else {
+                headers[headerName] = langflowKey;
+            }
+        }
+
+        // Forward request to LangFlow
+        const fetch = require('node-fetch');
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(req.body)
+        });
+
+        if (!response.ok) {
+            throw new Error(`LangFlow error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('LangFlow proxy error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Serve index.html for all other routes (SPA support)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Start server
+app.listen(PORT, () => {
+    console.log(`
+    ╔══════════════════════════════════════════════════════╗
+    ║                                                      ║
+    ║        ✨ Tarot Mystic Web App ✨                  ║
+    ║                                                      ║
+    ║        Server running on port ${PORT}                  ║
+    ║        Access at: http://localhost:${PORT}             ║
+    ║                                                      ║
+    ╚══════════════════════════════════════════════════════╝
+    `);
+    console.log('\n🔮 Configuration:');
+    console.log('   - Tarot API:', process.env.TAROT_API_URL || 'http://localhost:3000');
+    console.log('   - LangFlow:', process.env.LANGFLOW_API_URL ? 'Configured ✓' : 'Not configured ✗');
+    console.log('\n💡 Press Ctrl+C to stop the server\n');
+});
+
+module.exports = app;
