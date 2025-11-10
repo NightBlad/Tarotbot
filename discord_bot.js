@@ -211,9 +211,9 @@ async function callLangFlow(flow, input) {
   // Build payload following the LangFlow run API example
   let inputValue = typeof input === 'string' ? input : JSON.stringify(input);
   
-  // LangFlow API has a 1024 character limit on input_value
+  // LangFlow API has a 3072 character limit on input_value
   // If input exceeds this, truncate or summarize it
-  const MAX_INPUT_LENGTH = 1024;
+  const MAX_INPUT_LENGTH = 3072;
   if (inputValue.length > MAX_INPUT_LENGTH) {
     console.warn(`Input length ${inputValue.length} exceeds LangFlow limit ${MAX_INPUT_LENGTH}. Truncating...`);
     
@@ -867,7 +867,7 @@ function registerEventHandlers(botClient) {
                 let fieldValue = parts.slice(1).join('—').trim();
                 
                 // Split long content into multiple fields if needed
-                const MAX_FIELD_LENGTH = 1020;
+                const MAX_FIELD_LENGTH = 3060;
                 if (fieldValue.length > MAX_FIELD_LENGTH) {
                   // Split into chunks at sentence boundaries
                   const sentences = fieldValue.split(/([.!?]\s+)/);
@@ -918,7 +918,7 @@ function registerEventHandlers(botClient) {
               if (advice) {
                 fields.push({
                   name: '💡 Lời khuyên',
-                  value: advice.substring(0, 1020), // Discord limit 1024 chars
+                  value: advice.substring(0, 3060), // Discord limit 3072 chars
                   inline: false
                 });
               }
@@ -1023,15 +1023,15 @@ function registerEventHandlers(botClient) {
             }
             
             // Double-check field constraints before adding
-            // Discord limit: field.name max 256, field.value max 1024 chars
+            // Discord limit: field.name max 256, field.value max 3072 chars
             if (field.name && field.name.length > 0 && field.name.length <= 256 &&
                 field.value && field.value.length > 0) {
               
-              // Truncate field value if it exceeds Discord's 1024 char limit
+              // Truncate field value if it exceeds Discord's 3072 char limit
               let fieldValue = field.value;
-              if (fieldValue.length > 1024) {
-                fieldValue = fieldValue.substring(0, 1020) + '...';
-                console.log(`Truncated field "${field.name}" from ${field.value.length} to 1024 chars`);
+              if (fieldValue.length > 3072) {
+                fieldValue = fieldValue.substring(0, 3060) + '...';
+                console.log(`Truncated field "${field.name}" from ${field.value.length} to 3072 chars`);
               }
               
               const fieldSize = field.name.length + fieldValue.length;
@@ -1041,7 +1041,7 @@ function registerEventHandlers(botClient) {
                 wasTruncated = true;
                 // If no fields added yet, add at least a truncated version of this one
                 if (fieldCount === 0) {
-                  const truncatedValue = fieldValue.substring(0, Math.min(1020, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
+                  const truncatedValue = fieldValue.substring(0, Math.min(3060, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
                   embed.addFields({
                     name: field.name,
                     value: truncatedValue,
