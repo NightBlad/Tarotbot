@@ -118,23 +118,48 @@ const client = createClient(false);
 const { callTarotApi } = require('./tarot_client');
 const { renderCardsToImage, saveImageToTemp } = require('./image_renderer');
 
-// Check and install Chrome for Puppeteer if needed
-(async () => {
+// Ensure Chrome for Puppeteer is available (robust startup check/install)
+(async function ensureChromeAtStartup() {
+  const fs = require('fs');
+  const { execSync } = require('child_process');
+
+  function chromeCacheExists() {
+    const candidates = [
+      path.join(process.env.HOME || process.env.USERPROFILE || '', '.cache', 'puppeteer', 'chrome'),
+      path.join(process.env.HOME || process.env.USERPROFILE || '', '.local-chromium'),
+      '/opt/render/.cache/puppeteer',
+      path.join(process.cwd(), '.cache', 'puppeteer')
+    ];
+    for (const p of candidates) {
+      try { if (p && fs.existsSync(p)) return true; } catch (_) {}
+    }
+    return false;
+  }
+
+  async function tryInstallChrome() {
+    try {
+      console.log('Attempting to install Chrome for Puppeteer via npx...');
+      execSync('npx puppeteer@latest browsers install chrome', { stdio: 'inherit' });
+      console.log('Chrome installed successfully for Puppeteer.');
+      return true;
+    } catch (e) {
+      console.warn('Automatic puppeteer chrome install failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  }
+
   try {
-    const { execSync } = require('child_process');
-    const chromePath = require('path').join(process.env.HOME || process.env.USERPROFILE, '.cache', 'puppeteer', 'chrome');
-    const fs = require('fs');
-    
-    // Check if Chrome is already installed
-    if (!fs.existsSync(chromePath)) {
-      console.log('Chrome not found. Installing Chrome for Puppeteer...');
-      execSync('npx puppeteer browsers install chrome', { stdio: 'inherit' });
-      console.log('Chrome installed successfully!');
+    if (chromeCacheExists()) {
+      console.log('Chrome for Puppeteer appears to be installed (cache found).');
     } else {
-      console.log('Chrome for Puppeteer is already installed.');
+      console.log('Chrome not found in known cache locations. Attempting install...');
+      const ok = await tryInstallChrome();
+      if (!ok) {
+        console.warn('Could not install Chrome automatically. Image rendering may fail. Run manually: npx puppeteer browsers install chrome');
+      }
     }
   } catch (err) {
-    console.warn('Could not verify/install Chrome:', err.message);
+    console.warn('Could not verify/install Chrome at startup:', err && err.message ? err.message : err);
     console.warn('Image rendering may not work. Run: npx puppeteer browsers install chrome');
   }
 })();
@@ -832,17 +857,17 @@ function registerEventHandlers(botClient) {
           // Set embed title and description
           embed.setTitle(title.substring(0, 256));
           
-          // Try to render cards as a composite image
+          // Try to render cards as a composite image (with retry/install on missing Chrome)
           let renderedImagePath = null;
           try {
             const cardsData = extractCardsFromText(cleanText);
-            
+
             // Match images to cards
             if (cardsData.length > 0 && imgs.length > 0) {
               for (let i = 0; i < cardsData.length && i < imgs.length; i++) {
                 cardsData[i].image = imgs[i];
               }
-              
+
               // Render cards to image
               if (cardsData.every(c => c.image)) {
                 console.log(`Rendering ${cardsData.length} cards to composite image...`);
@@ -852,8 +877,38 @@ function registerEventHandlers(botClient) {
               }
             }
           } catch (renderErr) {
-            console.warn('Failed to render composite image:', renderErr.message);
-            // Continue without rendered image
+            console.warn('Failed to render composite image:', renderErr && renderErr.message ? renderErr.message : renderErr);
+            // If failure looks like missing Chrome, attempt an automatic install and retry once
+            const msg = renderErr && renderErr.message ? renderErr.message : '';
+            if (/Could not find Chrome|Unable to launch browser|Could not find chromium|No usable sandbox|Could not find Chrome/.test(msg)) {
+              try {
+                console.log('Detected Chromium missing. Attempting to install Puppeteer Chrome and retry render once...');
+                const { execSync } = require('child_process');
+                try {
+                  execSync('npx puppeteer@latest browsers install chrome', { stdio: 'inherit' });
+                  console.log('Puppeteer chrome install attempt finished. Retrying render...');
+                  // retry render once
+                  try {
+                    const cardsDataRetry = extractCardsFromText(cleanText);
+                    if (cardsDataRetry.length > 0 && imgs.length > 0) {
+                      for (let i = 0; i < cardsDataRetry.length && i < imgs.length; i++) cardsDataRetry[i].image = imgs[i];
+                      if (cardsDataRetry.every(c => c.image)) {
+                        const imageBuffer2 = await renderCardsToImage(cardsDataRetry, { title, spread: sub });
+                        renderedImagePath = await saveImageToTemp(imageBuffer2, `${sub}_spread`);
+                        console.log('Rendered image saved after retry to:', renderedImagePath);
+                      }
+                    }
+                  } catch (retryErr) {
+                    console.warn('Retry render still failed:', retryErr && retryErr.message ? retryErr.message : retryErr);
+                  }
+                } catch (instErr) {
+                  console.warn('Automatic install failed or not permitted in this environment:', instErr && instErr.message ? instErr.message : instErr);
+                }
+              } catch (retryOuterErr) {
+                console.warn('Retry/install flow failed:', retryOuterErr && retryOuterErr.message ? retryOuterErr.message : retryOuterErr);
+              }
+            }
+            // If still no renderedImagePath, proceed without composite image
           }
           
           // Calculate current embed size for validation
@@ -880,7 +935,7 @@ function registerEventHandlers(botClient) {
           let currentSize = getEmbedSize(embed);
           const maxEmbedSize = 5800; // safety margin below 6000
           let fieldCount = 0;
-          const maxFields = 20; // Reserve more fields for conclusion parts
+          const maxFields = 10; // Reserve more fields for conclusion parts
           let wasTruncated = false;
           
           for (const field of fields) {
@@ -939,8 +994,8 @@ function registerEventHandlers(botClient) {
             
             // If conclusion is longer than 1024, truncate with ellipsis
             // We'll use the split-message approach instead of multiple conclusion fields
-            if (conclusionText.length > 1024) {
-              const truncated = conclusionText.substring(0, 1020) + '...';
+            if (conclusionText.length > 2048) {
+              const truncated = conclusionText.substring(0, 2044) + '...';
               const conclusionSize = '🔮 Kết luận'.length + truncated.length;
               
               if (currentSize + conclusionSize <= maxEmbedSize) {
@@ -953,7 +1008,7 @@ function registerEventHandlers(botClient) {
                 fieldCount++;
                 
                 // Store remaining conclusion for continuation embed if needed
-                const remainingConclusion = conclusionText.substring(1020);
+                const remainingConclusion = conclusionText.substring(2044);
                 if (remainingConclusion.length > 0) {
                   // We'll handle this in the split message logic below
                   embed._remainingConclusion = remainingConclusion;
