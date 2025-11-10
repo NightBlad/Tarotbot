@@ -1077,33 +1077,48 @@ function registerEventHandlers(botClient) {
             }
           }
           
-          // Add conclusion - split into multiple fields by paragraphs
+          // Add conclusion - split into multiple fields by paragraphs with smart detection
           if (conclusion.trim() && fieldCount < 25) {
             const conclusionText = conclusion.trim();
             
-            // Split conclusion into paragraphs (separated by double newlines or single newlines)
-            const paragraphs = conclusionText.split(/\n\n+/).filter(p => p.trim());
+            // Strategy 1: Try splitting by double newlines (clear paragraph breaks)
+            let paragraphs = conclusionText.split(/\n\n+/).filter(p => p.trim());
             
-            // If no double-newline paragraphs found, try splitting by single newlines for long text
-            const effectiveParagraphs = paragraphs.length > 1 ? paragraphs : 
-              (conclusionText.length > 1500 ? conclusionText.split(/\n/).filter(p => p.trim()) : [conclusionText]);
+            // Strategy 2: If no clear paragraph breaks, split by single newlines
+            if (paragraphs.length === 1 && conclusionText.length > 1500) {
+              paragraphs = conclusionText.split(/\n/).filter(p => p.trim());
+            }
+            
+            // Strategy 3: If still one long block, split by sentences (period + space or end)
+            if (paragraphs.length === 1 && conclusionText.length > 2000) {
+              // Split on sentence boundaries (. followed by space or newline or end)
+              const sentences = conclusionText.match(/[^.!?]+[.!?]+/g) || [conclusionText];
+              paragraphs = sentences.map(s => s.trim()).filter(Boolean);
+            }
             
             let currentParagraphBatch = '';
             let isFirstConclusionField = true;
             
-            for (let i = 0; i < effectiveParagraphs.length; i++) {
-              const para = effectiveParagraphs[i].trim();
+            for (let i = 0; i < paragraphs.length; i++) {
+              const para = paragraphs[i].trim();
+              if (!para) continue;
               
-              // Check if adding this paragraph would exceed field limit
-              const testBatch = currentParagraphBatch ? `${currentParagraphBatch}\n\n${para}` : para;
+              // Try to add paragraph to current batch with proper spacing
+              let testBatch;
+              if (!currentParagraphBatch) {
+                testBatch = para;
+              } else {
+                // Use double newline for clear separation if original had it
+                const separator = conclusionText.includes('\n\n') ? '\n\n' : '\n';
+                testBatch = `${currentParagraphBatch}${separator}${para}`;
+              }
               
               if (testBatch.length <= 3060 && fieldCount < 24) {
                 // Can add this paragraph to current batch
                 currentParagraphBatch = testBatch;
                 
                 // If this is the last paragraph, add the field
-                if (i === effectiveParagraphs.length - 1) {
-                  // First field has name, others are empty (using zero-width space)
+                if (i === paragraphs.length - 1) {
                   const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
                   const conclusionSize = fieldName.length + currentParagraphBatch.length;
                   
@@ -1120,7 +1135,6 @@ function registerEventHandlers(botClient) {
               } else {
                 // Current batch is full, add it as a field
                 if (currentParagraphBatch) {
-                  // First field has name, others are empty (using zero-width space)
                   const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
                   const conclusionSize = fieldName.length + currentParagraphBatch.length;
                   
@@ -1143,7 +1157,7 @@ function registerEventHandlers(botClient) {
                 currentParagraphBatch = para;
                 
                 // If this is the last paragraph, add it
-                if (i === effectiveParagraphs.length - 1) {
+                if (i === paragraphs.length - 1) {
                   const fieldName = isFirstConclusionField ? '🔮 Kết luận' : '\u200b';
                   const conclusionSize = fieldName.length + currentParagraphBatch.length;
                   
