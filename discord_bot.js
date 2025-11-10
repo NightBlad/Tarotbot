@@ -822,7 +822,7 @@ function registerEventHandlers(botClient) {
               const parts = line.split('—');
               if (parts.length >= 2) {
                 const fieldName = parts[0].trim().substring(0, 256); // ensure name <= 256 chars
-                const fieldValue = parts.slice(1).join('—').trim().substring(0, 1024); // ensure value <= 1024 chars
+                const fieldValue = parts.slice(1).join('—').trim().substring(0, 2048); // ensure value <= 2048 chars
                 if (fieldName && fieldValue) {
                   fields.push({
                     name: fieldName,
@@ -841,7 +841,7 @@ function registerEventHandlers(botClient) {
               if (advice) {
                 fields.push({
                   name: '💡 Lời khuyên',
-                  value: advice.substring(0, 1024),
+                  value: advice.substring(0, 2048),
                   inline: false
                 });
               }
@@ -947,7 +947,7 @@ function registerEventHandlers(botClient) {
             
             // Double-check field constraints before adding
             if (field.name && field.name.length > 0 && field.name.length <= 256 &&
-                field.value && field.value.length > 0 && field.value.length <= 1024) {
+                field.value && field.value.length > 0 && field.value.length <= 2048) {
               
               const fieldSize = field.name.length + field.value.length;
               
@@ -956,7 +956,7 @@ function registerEventHandlers(botClient) {
                 wasTruncated = true;
                 // If no fields added yet, add at least a truncated version of this one
                 if (fieldCount === 0) {
-                  const truncatedValue = field.value.substring(0, Math.min(1024, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
+                  const truncatedValue = field.value.substring(0, Math.min(2048, maxEmbedSize - currentSize - field.name.length - 100)) + '...';
                   embed.addFields({
                     name: field.name,
                     value: truncatedValue,
@@ -992,7 +992,7 @@ function registerEventHandlers(botClient) {
           if (conclusion.trim() && fieldCount < 25) {
             const conclusionText = conclusion.trim();
             
-            // If conclusion is longer than 1024, truncate with ellipsis
+            // If conclusion is longer than 2048, truncate with ellipsis
             // We'll use the split-message approach instead of multiple conclusion fields
             if (conclusionText.length > 2048) {
               const truncated = conclusionText.substring(0, 2044) + '...';
@@ -1141,7 +1141,7 @@ function registerEventHandlers(botClient) {
             // Add conclusion to last embed if present
             if (conclusion.trim() && embeds.length > 0) {
               const lastEmbed = embeds[embeds.length - 1];
-              const conclusionText = conclusion.trim().substring(0, 1024);
+              const conclusionText = conclusion.trim().substring(0, 2048);
               const lastEmbedSize = getEmbedSize(lastEmbed);
               const conclusionSize = '🔮 Kết luận'.length + conclusionText.length;
               
