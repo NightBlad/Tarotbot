@@ -746,31 +746,54 @@ class TarotApp {
             const singleLine = lines[0];
             
             // Extract all card patterns from the line
-            // Pattern: Card Name (Orientation) — Description
-            const cardPattern = /([A-Z][^(]{3,60})\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,2}\.)/g;
+            // Pattern 1: Position: Card Name (Orientation) — Description
+            // Pattern 2: Card Name (Orientation) — Description
+            const cardPattern1 = /([^:]+):\s*([^(]+)\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,3}\.)/g;
             let match;
             
-            while ((match = cardPattern.exec(singleLine)) !== null) {
-                const name = match[1].trim();
-                const orientation = match[2].trim();
-                const description = match[3].trim();
+            while ((match = cardPattern1.exec(singleLine)) !== null) {
+                const position = match[1].trim();
+                const name = match[2].trim();
+                const orientation = match[3].trim();
+                let description = match[4].trim();
                 
-                console.log('Global regex matched card:', { name, orientation, description });
+                console.log('Global regex matched card:', { position, name, orientation, description: description.substring(0, 50) });
                 
-                // Validate it's a card
+                // Validate it's a card (not a section title)
                 const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
                 const validName = !name.toLowerCase().includes('kết luận') && 
                                  !name.toLowerCase().includes('trải bài') &&
+                                 !position.toLowerCase().includes('trải bài') &&
                                  name.length < 80;
                 
+                // Check if description accidentally captured the next card - truncate at next position
+                const nextCardMatch = description.match(/^([^]+?)(?=\s+[A-Z][^:]+:\s*[A-Z])/);
+                if (nextCardMatch) {
+                    description = nextCardMatch[1].trim();
+                    console.log('Truncated description at next card');
+                }
+                
                 if (isCard && validName) {
+                    // Translate position if it's a known pattern
+                    let displayPosition = position;
+                    const posLower = position.toLowerCase();
+                    if (posLower === 'quá khứ' || posLower === 'past') {
+                        displayPosition = '1: Quá Khứ';
+                    } else if (posLower === 'hiện tại' || posLower === 'present') {
+                        displayPosition = '2: Hiện Tại';
+                    } else if (posLower === 'tương lai' || posLower === 'future') {
+                        displayPosition = '3: Tương Lai';
+                    } else {
+                        displayPosition = position;
+                    }
+                    
                     result.cards.push({
-                        position: this.getCardPosition(result.cards.length),
+                        position: displayPosition,
                         name: name,
                         orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
                         description: description
                     });
-                    console.log('Added card via global regex:', name);
+                    console.log('Added card via global regex:', displayPosition, '-', name);
                 }
             }
             
@@ -781,10 +804,14 @@ class TarotApp {
                 console.log('Extracted conclusion:', result.conclusion.substring(0, 100));
             }
             
-            // Extract title (first sentence before card)
-            const titleMatch = singleLine.match(/^([^.]+\.)/);
-            if (titleMatch && !titleMatch[1].includes('(')) {
-                result.title = titleMatch[1].trim();
+            // Extract title (everything before first card or first period)
+            const titleMatch = singleLine.match(/^(.+?)(?=(?:[A-Z][^:]+:\s*[A-Z][^(]+\()|(?:Kết luận:))/i);
+            if (titleMatch) {
+                // Clean up - take only the first few sentences
+                const titleText = titleMatch[1].trim();
+                const sentences = titleText.split(/\.\s+/);
+                result.title = sentences.slice(0, 2).join('. ').trim();
+                if (!result.title.endsWith('.')) result.title += '.';
                 console.log('Extracted title:', result.title);
             }
             
