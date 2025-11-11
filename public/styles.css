@@ -512,6 +512,143 @@ body {
     color: var(--primary-color);
 }
 
+/* ==================== CARD DETAIL LAYOUT ==================== */
+.tarot-card-detail {
+    width: 100%;
+    margin-bottom: 2rem;
+    animation: cardReveal 0.8s ease-out backwards;
+}
+
+.tarot-card-detail:nth-child(1) { animation-delay: 0.1s; }
+.tarot-card-detail:nth-child(2) { animation-delay: 0.2s; }
+.tarot-card-detail:nth-child(3) { animation-delay: 0.3s; }
+
+.card-detail-container {
+    display: flex;
+    gap: 2rem;
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 2rem;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(123, 104, 238, 0.3);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card-detail-container:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 50px rgba(123, 104, 238, 0.4);
+}
+
+.card-detail-image {
+    flex-shrink: 0;
+    width: 200px;
+}
+
+.card-detail-image .card-image-wrapper {
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    border: 3px solid var(--accent-color);
+}
+
+.card-detail-image .card-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.card-detail-image .card-image.reversed {
+    transform: rotate(180deg);
+}
+
+.card-detail-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.card-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.card-detail-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.card-detail-orientation {
+    padding: 0.5rem 1.2rem;
+    border-radius: 50px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.card-detail-orientation.upright {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: white;
+}
+
+.card-detail-orientation.reversed {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: white;
+}
+
+.card-detail-position {
+    font-size: 1rem;
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+.card-detail-description {
+    margin-top: 0.5rem;
+}
+
+.card-detail-description p {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Mobile responsiveness for card detail */
+@media (max-width: 768px) {
+    .card-detail-container {
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1.5rem;
+    }
+    
+    .card-detail-image {
+        width: 100%;
+        max-width: 250px;
+        margin: 0 auto;
+    }
+    
+    .card-detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .card-detail-name {
+        font-size: 1.5rem;
+    }
+    
+    .card-detail-description p {
+        font-size: 1rem;
+    }
+}
+
 /* ==================== RESULTS CONTENT ==================== */
 .results-content {
     background: var(--card-bg);

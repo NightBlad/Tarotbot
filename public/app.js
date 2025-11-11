@@ -638,6 +638,7 @@ class TarotApp {
         const lines = text.split('\n');
         let currentSection = null;
         let inConclusion = false;
+        let currentCardDescription = '';
 
         for (const line of lines) {
             const trimmed = line.trim();
@@ -649,9 +650,29 @@ class TarotApp {
             }
 
             // First line is typically the title
-            if (!result.title && trimmed.length < 100) {
+            if (!result.title && trimmed.length < 100 && !trimmed.includes('(')) {
                 result.title = trimmed;
                 continue;
+            }
+
+            // Detect card lines with emoji prefix (e.g., "The Hermit (Xuôi) — Description")
+            const cardWithDescMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)\s*[—-]\s*(.+)/u);
+            if (cardWithDescMatch) {
+                const name = cardWithDescMatch[1].trim();
+                const orientation = cardWithDescMatch[2].trim();
+                const description = cardWithDescMatch[3].trim();
+                
+                // Only add if it looks like a card name (not a section title)
+                if (name.length < 50) {
+                    result.cards.push({
+                        position: result.cards.length === 0 ? 'Lá Bài' : `Lá Bài ${result.cards.length + 1}`,
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        description: description
+                    });
+                    currentCardDescription = '';
+                    continue;
+                }
             }
 
             // Detect card lines with emoji prefix (e.g., "🔹 The Hermit (Xuôi)")
@@ -663,10 +684,12 @@ class TarotApp {
                 // Only add if it looks like a card name (not a section title)
                 if (name.length < 50) {
                     result.cards.push({
-                        position: result.cards.length === 0 ? 'Card' : `Card ${result.cards.length + 1}`,
+                        position: result.cards.length === 0 ? 'Lá Bài' : `Lá Bài ${result.cards.length + 1}`,
                         name: name,
-                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright'
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        description: ''
                     });
+                    currentCardDescription = '';
                     continue;
                 }
             }
@@ -681,15 +704,18 @@ class TarotApp {
                 result.cards.push({
                     position: position,
                     name: name,
-                    orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright'
+                    orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                    description: ''
                 });
+                currentCardDescription = '';
                 continue;
             }
 
-            // Detect conclusion with emoji
+            // Detect conclusion with emoji or "Kết luận:"
             if (trimmed.toLowerCase().includes('kết luận') || /^[\u{1F300}-\u{1F9FF}]+\s*kết luận/iu.test(trimmed)) {
                 inConclusion = true;
                 currentSection = null;
+                currentCardDescription = '';
                 const match = trimmed.match(/kết luận[:\s]*(.*)/i);
                 if (match && match[1]) {
                     result.conclusion += match[1] + '\n';
@@ -712,23 +738,21 @@ class TarotApp {
                         content: parts.slice(1).join('—').trim()
                     };
                     result.sections.push(currentSection);
+                    currentCardDescription = '';
                 }
                 continue;
             }
 
-            // Add to current section or create new one
+            // Add to current section or card description
             if (currentSection) {
                 currentSection.content += ' ' + trimmed;
-            } else {
-                // If we have cards but no sections yet, treat remaining text as content
-                if (result.cards.length > 0 && !trimmed.match(/^[\u{1F300}-\u{1F9FF}]+$/u)) {
-                    if (!currentSection) {
-                        currentSection = {
-                            title: 'Ý nghĩa',
-                            content: trimmed
-                        };
-                        result.sections.push(currentSection);
-                    }
+            } else if (result.cards.length > 0 && !inConclusion) {
+                // Add to the last card's description
+                const lastCard = result.cards[result.cards.length - 1];
+                if (lastCard.description) {
+                    lastCard.description += ' ' + trimmed;
+                } else {
+                    lastCard.description = trimmed;
                 }
             }
         }
@@ -747,23 +771,36 @@ class TarotApp {
 
         cards.forEach((card, index) => {
             const cardEl = document.createElement('div');
-            cardEl.className = 'tarot-card';
+            cardEl.className = 'tarot-card-detail';
             
             // Use extracted image URL if available, otherwise construct from card name
             const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
             
             cardEl.innerHTML = `
-                <div class="card-image-wrapper">
-                    <img 
-                        src="${imageUrl}" 
-                        alt="${card.name}" 
-                        class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
-                        onerror="this.src='https://via.placeholder.com/180x300/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
-                    >
+                <div class="card-detail-container">
+                    <div class="card-detail-image">
+                        <div class="card-image-wrapper">
+                            <img 
+                                src="${imageUrl}" 
+                                alt="${card.name}" 
+                                class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
+                                onerror="this.src='https://via.placeholder.com/200x350/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
+                            >
+                        </div>
+                    </div>
+                    <div class="card-detail-info">
+                        <div class="card-detail-header">
+                            <h3 class="card-detail-name">${this.escapeHtml(card.name)}</h3>
+                            <span class="card-detail-orientation ${card.orientation}">${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'}</span>
+                        </div>
+                        <div class="card-detail-position">${this.escapeHtml(card.position)}</div>
+                        ${card.description ? `
+                            <div class="card-detail-description">
+                                <p>${this.escapeHtml(card.description)}</p>
+                            </div>
+                        ` : ''}
+                    </div>
                 </div>
-                <div class="card-position">${card.position}</div>
-                <div class="card-name">${card.name}</div>
-                <div class="card-orientation">${card.orientation === 'reversed' ? '(Ngược)' : '(Xuôi)'}</div>
             `;
             
             container.appendChild(cardEl);
