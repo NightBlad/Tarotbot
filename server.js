@@ -29,6 +29,18 @@ function jsonErr(res, message, code = 400) {
   res.status(code).json({ success: false, error: message });
 }
 
+// Get all cards endpoint
+app.get('/cards', (req, res) => {
+  try {
+    const cardData = require('./card_data.js');
+    const cards = Array.isArray(cardData.cards) ? cardData.cards : [];
+    return jsonOk(res, cards);
+  } catch (err) {
+    console.error('cards error', err);
+    return jsonErr(res, 'Internal server error', 500);
+  }
+});
+
 // generic GET that maps a type to a spread
 app.get('/draw/:type', (req, res) => {
   const { type } = req.params;
