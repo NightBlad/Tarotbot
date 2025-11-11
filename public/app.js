@@ -250,8 +250,8 @@ class TarotApp {
         // Set question
         document.getElementById('questionInput').value = item.question || '';
         
-        // Display results
-        this.displayResults(item.reading.text);
+        // Display results with stored card data
+        this.displayResults(item.reading.text, item.reading.cardData || null);
         
         // Close history sidebar
         this.closeHistory();
@@ -476,7 +476,11 @@ class TarotApp {
         document.getElementById('loadingState').style.display = 'block';
         
         try {
-            // Call LangFlow API
+            // First, draw cards from Tarot API to get images
+            const cardData = await this.drawCards(this.currentSpread);
+            console.log('Card data from API:', cardData);
+            
+            // Call LangFlow API for reading text
             const result = await this.callLangFlow(this.currentSpread, question, sig);
             
             // Store current reading
@@ -485,16 +489,47 @@ class TarotApp {
                 spread: this.currentSpread,
                 question: question,
                 sig: sig,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                cardData: cardData // Store card data
             };
             
             // Display results
-            this.displayResults(result);
+            this.displayResults(result, cardData);
         } catch (error) {
             console.error('Reading error:', error);
             alert('Có lỗi xảy ra khi bói bài. Vui lòng thử lại.');
         } finally {
             document.getElementById('loadingState').style.display = 'none';
+        }
+    }
+
+    async drawCards(spread) {
+        // Call Tarot API to draw cards
+        const url = `/api/draw/${spread}`;
+        
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Tarot API error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Raw card data:', data);
+            
+            // Extract card information
+            if (data.success && data.data && Array.isArray(data.data)) {
+                return data.data.map(item => ({
+                    position: item.position,
+                    name: item.card.name,
+                    imageUrl: item.card.image.replace('./', 'https://tarotbot-astc.onrender.com/'),
+                    orientation: item.card.orientation
+                }));
+            }
+            
+            return [];
+        } catch (error) {
+            console.error('Error drawing cards:', error);
+            return [];
         }
     }
 
@@ -573,14 +608,15 @@ class TarotApp {
         return JSON.stringify(data);
     }
 
-    displayResults(text) {
+    displayResults(text, cardData = null) {
         console.log('=== displayResults ===');
         console.log('Raw text length:', text.length);
         console.log('Raw text preview:', text.substring(0, 500));
+        console.log('Card data:', cardData);
         
-        // Extract image URLs from text
+        // Extract image URLs from text as fallback
         const { cleanText, imageUrls } = this.extractImageUrls(text);
-        console.log('Extracted image URLs:', imageUrls);
+        console.log('Extracted image URLs from text:', imageUrls);
         console.log('Clean text preview:', cleanText.substring(0, 500));
         
         // Parse the cleaned text content
@@ -591,17 +627,28 @@ class TarotApp {
         console.log('Sections:', parsed.sections);
         console.log('Conclusion length:', parsed.conclusion.length);
         
-        // Add extracted images to cards
-        if (imageUrls.length > 0) {
-            imageUrls.forEach((url, index) => {
-                if (parsed.cards[index]) {
-                    parsed.cards[index].imageUrl = url;
-                }
-            });
+        // Display images - prioritize API card data, then extracted URLs, then parsed cards
+        if (cardData && cardData.length > 0) {
+            console.log('Using card data from API');
+            this.displayCards(cardData);
+        } else if (imageUrls.length > 0) {
+            console.log('Using extracted image URLs');
+            // Create card objects from extracted image URLs
+            const imageCards = imageUrls.map((url, index) => ({
+                imageUrl: url,
+                name: `Card ${index + 1}`,
+                orientation: 'upright' // Default, actual orientation in image
+            }));
+            this.displayCards(imageCards);
+        } else if (parsed.cards.length > 0) {
+            console.log('Using parsed cards as fallback');
+            // Fallback to parsed cards if no URLs extracted
+            this.displayCards(parsed.cards);
+        } else {
+            // No cards found
+            console.log('No cards found to display');
+            this.displayCards([]);
         }
-        
-        // Display cards
-        this.displayCards(parsed.cards);
         
         // Display reading content
         this.displayReadingContent(parsed);
@@ -1167,8 +1214,8 @@ class TarotApp {
                     <img 
                         src="${imageUrl}" 
                         alt="${card.name}" 
-                        class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
-                        onerror="this.src='https://via.placeholder.com/250x400/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
+                        class="card-image"
+                        onerror="this.src='https://via.placeholder.com/250x400/7B68EE/FFFFFF?text=Tarot+Card'"
                     >
                 </div>
             `;
