@@ -638,7 +638,7 @@ class TarotApp {
         const lines = text.split('\n');
         let currentSection = null;
         let inConclusion = false;
-        let currentCardDescription = '';
+        let currentCardIndex = -1;
 
         for (const line of lines) {
             const trimmed = line.trim();
@@ -649,73 +649,77 @@ class TarotApp {
                 continue;
             }
 
-            // First line is typically the title
-            if (!result.title && trimmed.length < 100 && !trimmed.includes('(')) {
+            // First non-emoji line is typically the title
+            if (!result.title && trimmed.length < 150 && !trimmed.includes('(') && !trimmed.includes('—')) {
                 result.title = trimmed;
                 continue;
             }
 
-            // Detect card lines with emoji prefix (e.g., "The Hermit (Xuôi) — Description")
-            const cardWithDescMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)\s*[—-]\s*(.+)/u);
+            // Detect card lines with description using em dash: "Card Name (Orientation) — Description"
+            const cardWithDescMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)\s*[—–]\s*(.+)/u);
             if (cardWithDescMatch) {
                 const name = cardWithDescMatch[1].trim();
                 const orientation = cardWithDescMatch[2].trim();
                 const description = cardWithDescMatch[3].trim();
                 
-                // Only add if it looks like a card name (not a section title)
-                if (name.length < 50) {
+                // Only add if it looks like a card name (not too long)
+                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
-                        position: result.cards.length === 0 ? 'Lá Bài' : `Lá Bài ${result.cards.length + 1}`,
+                        position: this.getCardPosition(result.cards.length),
                         name: name,
                         orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
                         description: description
                     });
-                    currentCardDescription = '';
+                    currentCardIndex = result.cards.length - 1;
                     continue;
                 }
             }
 
-            // Detect card lines with emoji prefix (e.g., "🔹 The Hermit (Xuôi)")
+            // Detect card lines with colon: "Position: Card Name (Orientation) — Description"
+            const cardWithPosMatch = trimmed.match(/^([^:]+):\s*(.+?)\s*\(([^)]+)\)(?:\s*[—–]\s*(.+))?/);
+            if (cardWithPosMatch) {
+                const position = cardWithPosMatch[1].trim();
+                const name = cardWithPosMatch[2].trim();
+                const orientation = cardWithPosMatch[3].trim();
+                const description = cardWithPosMatch[4] ? cardWithPosMatch[4].trim() : '';
+                
+                // Check if position looks like a card position (not a section title)
+                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                    result.cards.push({
+                        position: position,
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        description: description
+                    });
+                    currentCardIndex = result.cards.length - 1;
+                    continue;
+                }
+            }
+
+            // Detect card lines with emoji prefix: "🔹 Card Name (Orientation)"
             const cardWithEmojiMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)/u);
             if (cardWithEmojiMatch) {
                 const name = cardWithEmojiMatch[1].trim();
                 const orientation = cardWithEmojiMatch[2].trim();
                 
                 // Only add if it looks like a card name (not a section title)
-                if (name.length < 50) {
+                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
-                        position: result.cards.length === 0 ? 'Lá Bài' : `Lá Bài ${result.cards.length + 1}`,
+                        position: this.getCardPosition(result.cards.length),
                         name: name,
                         orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
                         description: ''
                     });
-                    currentCardDescription = '';
+                    currentCardIndex = result.cards.length - 1;
                     continue;
                 }
-            }
-
-            // Detect card lines (pattern: "Position: Card Name (Orientation)")
-            const cardMatch = trimmed.match(/^([^:]+):\s*([^(]+)\s*\(([^)]+)\)/);
-            if (cardMatch) {
-                const position = cardMatch[1].trim();
-                const name = cardMatch[2].trim();
-                const orientation = cardMatch[3].trim();
-                
-                result.cards.push({
-                    position: position,
-                    name: name,
-                    orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
-                    description: ''
-                });
-                currentCardDescription = '';
-                continue;
             }
 
             // Detect conclusion with emoji or "Kết luận:"
             if (trimmed.toLowerCase().includes('kết luận') || /^[\u{1F300}-\u{1F9FF}]+\s*kết luận/iu.test(trimmed)) {
                 inConclusion = true;
                 currentSection = null;
-                currentCardDescription = '';
+                currentCardIndex = -1;
                 const match = trimmed.match(/kết luận[:\s]*(.*)/i);
                 if (match && match[1]) {
                     result.conclusion += match[1] + '\n';
@@ -730,7 +734,7 @@ class TarotApp {
             }
 
             // Detect section with em dash
-            if (trimmed.includes('—')) {
+            if (trimmed.includes('—') && !trimmed.match(/\([^)]+\)/)) {
                 const parts = trimmed.split('—');
                 if (parts.length >= 2) {
                     currentSection = {
@@ -738,26 +742,41 @@ class TarotApp {
                         content: parts.slice(1).join('—').trim()
                     };
                     result.sections.push(currentSection);
-                    currentCardDescription = '';
+                    currentCardIndex = -1;
                 }
                 continue;
             }
 
-            // Add to current section or card description
+            // Add to current context (section, card description, or skip)
             if (currentSection) {
                 currentSection.content += ' ' + trimmed;
-            } else if (result.cards.length > 0 && !inConclusion) {
-                // Add to the last card's description
-                const lastCard = result.cards[result.cards.length - 1];
-                if (lastCard.description) {
-                    lastCard.description += ' ' + trimmed;
+            } else if (currentCardIndex >= 0 && result.cards[currentCardIndex]) {
+                // Add to the current card's description
+                if (result.cards[currentCardIndex].description) {
+                    result.cards[currentCardIndex].description += ' ' + trimmed;
                 } else {
-                    lastCard.description = trimmed;
+                    result.cards[currentCardIndex].description = trimmed;
                 }
             }
         }
 
         return result;
+    }
+
+    getCardPosition(index) {
+        const positions = {
+            0: 'Lá Bài 1',
+            1: 'Lá Bài 2',
+            2: 'Lá Bài 3',
+            3: 'Lá Bài 4',
+            4: 'Lá Bài 5',
+            5: 'Lá Bài 6',
+            6: 'Lá Bài 7',
+            7: 'Lá Bài 8',
+            8: 'Lá Bài 9',
+            9: 'Lá Bài 10'
+        };
+        return positions[index] || `Lá Bài ${index + 1}`;
     }
 
     displayCards(cards) {
@@ -769,42 +788,87 @@ class TarotApp {
             return;
         }
 
+        // Use detailed layout for 1-2 cards with descriptions, grid for 3+ or no descriptions
+        const useDetailedLayout = cards.length <= 2 && cards.some(card => card.description);
+
         cards.forEach((card, index) => {
-            const cardEl = document.createElement('div');
-            cardEl.className = 'tarot-card-detail';
-            
-            // Use extracted image URL if available, otherwise construct from card name
-            const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
-            
-            cardEl.innerHTML = `
-                <div class="card-detail-container">
-                    <div class="card-detail-image">
-                        <div class="card-image-wrapper">
-                            <img 
-                                src="${imageUrl}" 
-                                alt="${card.name}" 
-                                class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
-                                onerror="this.src='https://via.placeholder.com/200x350/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
-                            >
-                        </div>
-                    </div>
-                    <div class="card-detail-info">
-                        <div class="card-detail-header">
-                            <h3 class="card-detail-name">${this.escapeHtml(card.name)}</h3>
-                            <span class="card-detail-orientation ${card.orientation}">${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'}</span>
-                        </div>
-                        <div class="card-detail-position">${this.escapeHtml(card.position)}</div>
-                        ${card.description ? `
-                            <div class="card-detail-description">
-                                <p>${this.escapeHtml(card.description)}</p>
+            if (useDetailedLayout) {
+                // Detailed card layout
+                const cardEl = document.createElement('div');
+                cardEl.className = 'tarot-card-detail';
+                
+                const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
+                
+                cardEl.innerHTML = `
+                    <div class="card-detail-container">
+                        <div class="card-detail-image">
+                            <div class="card-image-wrapper">
+                                <img 
+                                    src="${imageUrl}" 
+                                    alt="${card.name}" 
+                                    class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
+                                    onerror="this.src='https://via.placeholder.com/200x350/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
+                                >
                             </div>
-                        ` : ''}
+                        </div>
+                        <div class="card-detail-info">
+                            <div class="card-detail-header">
+                                <h3 class="card-detail-name">${this.escapeHtml(card.name)}</h3>
+                                <span class="card-detail-orientation ${card.orientation}">${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'}</span>
+                            </div>
+                            <div class="card-detail-position">${this.escapeHtml(card.position)}</div>
+                            ${card.description ? `
+                                <div class="card-detail-description">
+                                    <p>${this.escapeHtml(card.description)}</p>
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
-                </div>
-            `;
-            
-            container.appendChild(cardEl);
+                `;
+                
+                container.appendChild(cardEl);
+            } else {
+                // Grid card layout (compact for multiple cards)
+                const cardEl = document.createElement('div');
+                cardEl.className = 'tarot-card';
+                
+                const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
+                
+                cardEl.innerHTML = `
+                    <div class="card-image-wrapper">
+                        <img 
+                            src="${imageUrl}" 
+                            alt="${card.name}" 
+                            class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
+                            onerror="this.src='https://via.placeholder.com/180x300/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
+                        >
+                    </div>
+                    <div class="card-position">${this.escapeHtml(card.position)}</div>
+                    <div class="card-name">${this.escapeHtml(card.name)}</div>
+                    <div class="card-orientation ${card.orientation}">${card.orientation === 'reversed' ? '(Ngược)' : '(Xuôi)'}</div>
+                `;
+                
+                container.appendChild(cardEl);
+            }
         });
+
+        // If there are card descriptions in grid layout, show them as sections
+        if (!useDetailedLayout && cards.some(card => card.description)) {
+            cards.forEach(card => {
+                if (card.description) {
+                    const descEl = document.createElement('div');
+                    descEl.className = 'card-description-section';
+                    descEl.innerHTML = `
+                        <h4 class="card-desc-title">
+                            <span>🔹</span>
+                            ${this.escapeHtml(card.position)}: ${this.escapeHtml(card.name)} (${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'})
+                        </h4>
+                        <p class="card-desc-text">${this.escapeHtml(card.description)}</p>
+                    `;
+                    container.appendChild(descEl);
+                }
+            });
+        }
     }
 
     getCardImageUrl(cardName) {
