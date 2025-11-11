@@ -8,7 +8,7 @@ const cors = require('cors');
 const fetch = globalThis.fetch || require('node-fetch');
 
 const app = express();
-const PORT = process.env.WEB_PORT || 8080;
+const PORT = process.env.PORT || process.env.WEB_PORT || 8080;
 
 // Middleware
 app.use(cors());
@@ -116,6 +116,10 @@ app.get('/api/draw/:type', async (req, res) => {
 
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
+    // Don't serve index.html for API routes
+    if (req.path.startsWith('/api/')) {
+        return res.status(404).json({ error: 'API endpoint not found' });
+    }
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

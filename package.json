@@ -2,9 +2,10 @@
   "name": "tarotbot",
   "version": "1.0.0",
   "description": "Tarot spread API",
-  "main": "server.js",
+  "main": "web_server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node web_server.js",
+    "start:api": "node server.js",
     "bot": "node discord_bot.js",
     "start:app": "node app.js",
     "start:supervised": "npm run setup:chrome && node supervisor.js",
