@@ -745,38 +745,51 @@ class TarotApp {
             console.log('Single line detected, using global regex extraction');
             const singleLine = lines[0];
             
-            // Extract all card patterns from the line
-            // Pattern 1: Position: Card Name (Orientation) — Description
-            // Pattern 2: Card Name (Orientation) — Description
-            const cardPattern1 = /([^:]+):\s*([^(]+)\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,3}\.)/g;
+            // Extract title first (before any cards)
+            const titleMatch = singleLine.match(/^([^—]+?)(?=(?:[A-Z][^:]*:\s*[A-Z][^(]+\()|(?:[A-Z][^(]{3,}?\s*\([^)]+\)\s*—))/);
+            if (titleMatch) {
+                const titleText = titleMatch[1].trim();
+                // Take first 2 sentences or up to 200 chars
+                const sentences = titleText.split(/\.\s+/);
+                result.title = sentences.slice(0, 2).join('. ').trim();
+                if (!result.title.endsWith('.')) result.title += '.';
+                console.log('Extracted title:', result.title);
+            }
+            
+            // Pattern 1: With position prefix (Quá khứ: Card Name (Orientation) — Description)
+            const cardPattern1 = /([^:.\n]+):\s*([^(]+?)\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,4}\.)/g;
+            
+            // Pattern 2: Without position (Card Name (Orientation) — Description)
+            const cardPattern2 = /\s([A-Z][^(]{3,60}?)\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,4}\.)/g;
+            
             let match;
             
+            // First try pattern 1 (with position)
+            cardPattern1.lastIndex = 0;
             while ((match = cardPattern1.exec(singleLine)) !== null) {
                 const position = match[1].trim();
                 const name = match[2].trim();
                 const orientation = match[3].trim();
                 let description = match[4].trim();
                 
-                console.log('Global regex matched card:', { position, name, orientation, description: description.substring(0, 50) });
+                console.log('Pattern 1 matched:', { position, name, orientation, description: description.substring(0, 50) });
                 
                 // Validate it's a card (not a section title)
                 const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
-                const validName = !name.toLowerCase().includes('kết luận') && 
-                                 !name.toLowerCase().includes('trải bài') &&
-                                 !position.toLowerCase().includes('trải bài') &&
-                                 name.length < 80;
                 
-                // Check if description accidentally captured the next card - truncate at next position
-                const nextCardMatch = description.match(/^([^]+?)(?=\s+[A-Z][^:]+:\s*[A-Z])/);
-                if (nextCardMatch) {
-                    description = nextCardMatch[1].trim();
-                    console.log('Truncated description at next card');
-                }
+                // Exclude invalid positions/names
+                const posLower = position.toLowerCase();
+                const nameLower = name.toLowerCase();
+                const validPosition = !posLower.includes('trải bài') && 
+                                     !posLower.includes('kết luận') &&
+                                     position.length < 50;
+                const validName = !nameLower.includes('kết luận') && 
+                                 !nameLower.includes('trải bài') &&
+                                 name.length > 2 && name.length < 80;
                 
-                if (isCard && validName) {
+                if (isCard && validPosition && validName) {
                     // Translate position if it's a known pattern
                     let displayPosition = position;
-                    const posLower = position.toLowerCase();
                     if (posLower === 'quá khứ' || posLower === 'past') {
                         displayPosition = '1: Quá Khứ';
                     } else if (posLower === 'hiện tại' || posLower === 'present') {
@@ -793,7 +806,36 @@ class TarotApp {
                         orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
                         description: description
                     });
-                    console.log('Added card via global regex:', displayPosition, '-', name);
+                    console.log('Added card (pattern 1):', displayPosition, '-', name);
+                }
+            }
+            
+            // If no cards found with pattern 1, try pattern 2 (without position)
+            if (result.cards.length === 0) {
+                console.log('No cards found with pattern 1, trying pattern 2');
+                cardPattern2.lastIndex = 0;
+                while ((match = cardPattern2.exec(singleLine)) !== null) {
+                    const name = match[1].trim();
+                    const orientation = match[2].trim();
+                    let description = match[3].trim();
+                    
+                    console.log('Pattern 2 matched:', { name, orientation, description: description.substring(0, 50) });
+                    
+                    // Validate it's a card
+                    const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
+                    const validName = !name.toLowerCase().includes('kết luận') && 
+                                     !name.toLowerCase().includes('trải bài') &&
+                                     name.length > 2 && name.length < 80;
+                    
+                    if (isCard && validName) {
+                        result.cards.push({
+                            position: this.getCardPosition(result.cards.length),
+                            name: name,
+                            orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
+                            description: description
+                        });
+                        console.log('Added card (pattern 2):', name);
+                    }
                 }
             }
             
@@ -802,17 +844,6 @@ class TarotApp {
             if (conclusionMatch) {
                 result.conclusion = conclusionMatch[1].trim();
                 console.log('Extracted conclusion:', result.conclusion.substring(0, 100));
-            }
-            
-            // Extract title (everything before first card or first period)
-            const titleMatch = singleLine.match(/^(.+?)(?=(?:[A-Z][^:]+:\s*[A-Z][^(]+\()|(?:Kết luận:))/i);
-            if (titleMatch) {
-                // Clean up - take only the first few sentences
-                const titleText = titleMatch[1].trim();
-                const sentences = titleText.split(/\.\s+/);
-                result.title = sentences.slice(0, 2).join('. ').trim();
-                if (!result.title.endsWith('.')) result.title += '.';
-                console.log('Extracted title:', result.title);
             }
             
             console.log('=== Final parsed result (global regex) ===');
