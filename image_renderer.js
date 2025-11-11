@@ -150,32 +150,48 @@ async function renderCardsToImage(cards, options = {}) {
     </html>
   `;
   
-  // Find Chrome executable path
+  // Find Chrome executable path - search all possible locations
   function findChromeExecutable() {
-    const candidates = [
-      // Render.com / Linux paths (newer version)
-      '/opt/render/.cache/puppeteer/chrome/linux-142.0.7444.61/chrome-linux64/chrome',
-      '/opt/render/.cache/puppeteer/chrome/linux-128.0.6613.119/chrome-linux64/chrome',
-      // Standard Linux paths
-      path.join(process.env.HOME || '', '.cache', 'puppeteer', 'chrome', 'linux-142.0.7444.61', 'chrome-linux64', 'chrome'),
-      path.join(process.env.HOME || '', '.cache', 'puppeteer', 'chrome', 'linux-128.0.6613.119', 'chrome-linux64', 'chrome'),
-      // Windows paths
-      path.join(process.env.USERPROFILE || '', '.cache', 'puppeteer', 'chrome', 'win64-142.0.7444.61', 'chrome-win64', 'chrome.exe'),
-      path.join(process.env.USERPROFILE || '', '.cache', 'puppeteer', 'chrome', 'win64-128.0.6613.119', 'chrome-win64', 'chrome.exe'),
-      // Workspace paths
-      path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-142.0.7444.61', 'chrome-linux64', 'chrome'),
-      path.join(process.cwd(), '.cache', 'puppeteer', 'chrome', 'linux-128.0.6613.119', 'chrome-linux64', 'chrome')
+    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+    const chromeDirs = [
+      '/opt/render/.cache/puppeteer/chrome',
+      path.join(homeDir, '.cache', 'puppeteer', 'chrome'),
+      path.join(process.cwd(), '.cache', 'puppeteer', 'chrome'),
+      path.join(process.cwd(), 'node_modules', 'puppeteer', '.local-chromium')
     ];
     
-    for (const p of candidates) {
+    // Search for Chrome in all directories
+    for (const dir of chromeDirs) {
       try {
-        if (fs.existsSync(p)) {
-          console.log('Found Chrome executable at:', p);
-          return p;
+        if (!fs.existsSync(dir)) continue;
+        
+        // List all version folders
+        const versions = fs.readdirSync(dir);
+        for (const version of versions) {
+          const versionPath = path.join(dir, version);
+          
+          // Try different Chrome paths within version folder
+          const chromePaths = [
+            path.join(versionPath, 'chrome-linux64', 'chrome'),
+            path.join(versionPath, 'chrome-linux', 'chrome'),
+            path.join(versionPath, 'chrome-win64', 'chrome.exe'),
+            path.join(versionPath, 'chrome-win', 'chrome.exe'),
+            path.join(versionPath, 'chrome')
+          ];
+          
+          for (const chromePath of chromePaths) {
+            if (fs.existsSync(chromePath)) {
+              console.log('Found Chrome executable at:', chromePath);
+              return chromePath;
+            }
+          }
         }
-      } catch (_) {}
+      } catch (err) {
+        console.warn('Error searching Chrome in', dir, ':', err.message);
+      }
     }
     
+    console.warn('Chrome executable not found. Image rendering may fail.');
     return null;
   }
   
@@ -190,25 +206,37 @@ async function renderCardsToImage(cards, options = {}) {
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--single-process',
+      '--disable-web-security'
     ],
-    headless: true
+    headless: 'new'
   };
   
   // Add executablePath if found
   if (executablePath) {
     puppeteerConfig.executablePath = executablePath;
+    console.log('Using Chrome at:', executablePath);
+  } else {
+    console.warn('No Chrome executable specified. Using system default (may fail).');
   }
   
-  const image = await nodeHtmlToImage({
-    html,
-    quality: 100,
-    type: 'png',
-    puppeteerArgs: puppeteerConfig,
-    encoding: 'buffer'
-  });
-  
-  return image;
+  try {
+    const image = await nodeHtmlToImage({
+      html,
+      quality: 100,
+      type: 'png',
+      puppeteerArgs: puppeteerConfig,
+      encoding: 'buffer'
+    });
+    
+    console.log('Image rendered successfully, buffer size:', image ? image.length : 0);
+    return image;
+  } catch (err) {
+    console.error('Image rendering failed:', err.message);
+    console.error('Chrome path attempted:', executablePath || 'system default');
+    throw err;
+  }
 }
 
 /**

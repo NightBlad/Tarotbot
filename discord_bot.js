@@ -2,6 +2,7 @@ require('dotenv').config();
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const {
   Client,
   IntentsBitField,
@@ -938,23 +939,46 @@ function registerEventHandlers(botClient) {
           let renderedImagePath = null;
           try {
             const cardsData = extractCardsFromText(cleanText);
+            console.log('Extracted cards data:', cardsData.length, 'cards');
 
             // Match images to cards
             if (cardsData.length > 0 && imgs.length > 0) {
+              console.log('Available image URLs:', imgs.length);
               for (let i = 0; i < cardsData.length && i < imgs.length; i++) {
                 cardsData[i].image = imgs[i];
+                console.log(`Card ${i}: ${cardsData[i].name} -> ${cardsData[i].image}`);
               }
 
               // Render cards to image
               if (cardsData.every(c => c.image)) {
                 console.log(`Rendering ${cardsData.length} cards to composite image...`);
                 const imageBuffer = await renderCardsToImage(cardsData, { title, spread: sub });
-                renderedImagePath = await saveImageToTemp(imageBuffer, `${sub}_spread`);
-                console.log('Rendered image saved to:', renderedImagePath);
+                console.log('Render complete. Buffer size:', imageBuffer ? imageBuffer.length : 0);
+                
+                if (imageBuffer && imageBuffer.length > 0) {
+                  renderedImagePath = await saveImageToTemp(imageBuffer, `${sub}_spread`);
+                  console.log('Rendered image saved to:', renderedImagePath);
+                  
+                  // Verify file exists
+                  if (fs.existsSync(renderedImagePath)) {
+                    const stats = fs.statSync(renderedImagePath);
+                    console.log('File verified. Size:', stats.size, 'bytes');
+                  } else {
+                    console.error('ERROR: Saved file does not exist!');
+                    renderedImagePath = null;
+                  }
+                } else {
+                  console.error('ERROR: Image buffer is empty or null');
+                }
+              } else {
+                console.warn('Some cards missing images. Skipping render.');
               }
+            } else {
+              console.warn('No cards data or images to render');
             }
           } catch (renderErr) {
             console.warn('Failed to render composite image:', renderErr && renderErr.message ? renderErr.message : renderErr);
+            console.error('Full render error:', renderErr);
             // If failure looks like missing Chrome, attempt an automatic install and retry once
             const msg = renderErr && renderErr.message ? renderErr.message : '';
             if (/Could not find Chrome|Unable to launch browser|Could not find chromium|No usable sandbox|Could not find Chrome/.test(msg)) {
@@ -971,12 +995,15 @@ function registerEventHandlers(botClient) {
                       for (let i = 0; i < cardsDataRetry.length && i < imgs.length; i++) cardsDataRetry[i].image = imgs[i];
                       if (cardsDataRetry.every(c => c.image)) {
                         const imageBuffer2 = await renderCardsToImage(cardsDataRetry, { title, spread: sub });
-                        renderedImagePath = await saveImageToTemp(imageBuffer2, `${sub}_spread`);
-                        console.log('Rendered image saved after retry to:', renderedImagePath);
+                        if (imageBuffer2 && imageBuffer2.length > 0) {
+                          renderedImagePath = await saveImageToTemp(imageBuffer2, `${sub}_spread`);
+                          console.log('Rendered image saved after retry to:', renderedImagePath);
+                        }
                       }
                     }
                   } catch (retryErr) {
                     console.warn('Retry render still failed:', retryErr && retryErr.message ? retryErr.message : retryErr);
+                    console.error('Full retry error:', retryErr);
                   }
                 } catch (instErr) {
                   console.warn('Automatic install failed or not permitted in this environment:', instErr && instErr.message ? instErr.message : instErr);
@@ -987,6 +1014,8 @@ function registerEventHandlers(botClient) {
             }
             // If still no renderedImagePath, proceed without composite image
           }
+          
+          console.log('Final rendered image path:', renderedImagePath || 'NONE');
           
           // Calculate current embed size for validation
           function getEmbedSize(e) {
@@ -1296,8 +1325,16 @@ function registerEventHandlers(botClient) {
             
             // Attach rendered image if available
             if (renderedImagePath) {
-              const attachment = new AttachmentBuilder(renderedImagePath);
-              replyPayload.files = [attachment];
+              console.log('Attaching image to split message:', renderedImagePath);
+              try {
+                const attachment = new AttachmentBuilder(renderedImagePath);
+                replyPayload.files = [attachment];
+                console.log('Attachment created successfully');
+              } catch (attachErr) {
+                console.error('Failed to create attachment:', attachErr);
+              }
+            } else {
+              console.warn('No rendered image to attach to split message');
             }
             
             await safeEditReply(interaction, replyPayload);
@@ -1316,8 +1353,16 @@ function registerEventHandlers(botClient) {
             const replyPayload = { embeds: [embed] };
             
             if (renderedImagePath) {
-              const attachment = new AttachmentBuilder(renderedImagePath);
-              replyPayload.files = [attachment];
+              console.log('Attaching image to single message:', renderedImagePath);
+              try {
+                const attachment = new AttachmentBuilder(renderedImagePath);
+                replyPayload.files = [attachment];
+                console.log('Attachment created successfully');
+              } catch (attachErr) {
+                console.error('Failed to create attachment:', attachErr);
+              }
+            } else {
+              console.warn('No rendered image to attach to single message');
             }
             
             await safeEditReply(interaction, replyPayload);
