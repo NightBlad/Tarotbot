@@ -4,6 +4,9 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 
+// Use global fetch (Node.js 18+) or import node-fetch if needed
+const fetch = globalThis.fetch || require('node-fetch');
+
 const app = express();
 const PORT = process.env.WEB_PORT || 8080;
 
@@ -65,6 +68,48 @@ app.post('/api/langflow/:flow', async (req, res) => {
         res.json(data);
     } catch (error) {
         console.error('LangFlow proxy error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Proxy endpoint for Tarot API /cards (to avoid CORS issues)
+app.get('/api/cards', async (req, res) => {
+    try {
+        const tarotApiUrl = process.env.TAROT_API_URL || 'https://tarotbot-astc.onrender.com';
+        const url = `${tarotApiUrl}/cards`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Tarot API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Tarot API proxy error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Proxy endpoint for Tarot API /draw/:type (to avoid CORS issues)
+app.get('/api/draw/:type', async (req, res) => {
+    try {
+        const { type } = req.params;
+        const tarotApiUrl = process.env.TAROT_API_URL || 'https://tarotbot-astc.onrender.com';
+        const queryString = new URLSearchParams(req.query).toString();
+        const url = `${tarotApiUrl}/draw/${type}${queryString ? '?' + queryString : ''}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Tarot API error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        res.json(data);
+    } catch (error) {
+        console.error('Tarot API proxy error:', error);
         res.status(500).json({ error: error.message });
     }
 });

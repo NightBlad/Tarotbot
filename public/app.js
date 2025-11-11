@@ -2,7 +2,7 @@
 class TarotApp {
     constructor() {
         this.currentSpread = null;
-        this.apiUrl = 'https://tarotbot-astc.onrender.com'; // Tarot API URL
+        this.apiUrl = '/api'; // Use local proxy endpoints
         this.langflowUrl = null; // Will be set from environment or config
         this.langflowKey = null;
         this.currentReading = null;
@@ -394,13 +394,7 @@ class TarotApp {
 
     async loadCardSuggestions() {
         try {
-            // Only load if tarot API is configured
-            if (!this.apiUrl || this.apiUrl.includes('localhost')) {
-                console.log('Tarot API not available - skipping card suggestions');
-                return;
-            }
-            
-            const response = await fetch(`${this.apiUrl}/cards`);
+            const response = await fetch('/api/cards');
             if (response.ok) {
                 const data = await response.json();
                 const cards = data.data || data;

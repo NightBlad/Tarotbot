@@ -1,9 +1,20 @@
 const express = require('express');
 const api = require('./tarot_api.js');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Enable CORS for all origins (or specify your domains)
+app.use(cors({
+  origin: [
+    'http://localhost:8080',
+    'https://tarotbot-1.onrender.com',
+    /\.onrender\.com$/
+  ],
+  credentials: true
+}));
 
 app.use(express.json());
 
