@@ -30,12 +30,17 @@ app.post('/api/langflow/:flow', async (req, res) => {
         const { flow } = req.params;
         const langflowUrl = process.env.LANGFLOW_API_URL;
         
+        console.log('=== LangFlow Request ===');
+        console.log('Flow:', flow);
+        console.log('Body:', JSON.stringify(req.body, null, 2));
+        
         if (!langflowUrl) {
             return res.status(500).json({ error: 'LangFlow URL not configured' });
         }
 
         // Build full URL
         let url = langflowUrl.replace('{flow}', encodeURIComponent(flow));
+        console.log('URL:', url);
         
         const headers = {
             'Content-Type': 'application/json'
@@ -60,11 +65,18 @@ app.post('/api/langflow/:flow', async (req, res) => {
             body: JSON.stringify(req.body)
         });
 
+        console.log('LangFlow Response Status:', response.status);
+
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('LangFlow Error Response:', errorText);
             throw new Error(`LangFlow error: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
+        console.log('=== LangFlow Response ===');
+        console.log(JSON.stringify(data, null, 2));
+        
         res.json(data);
     } catch (error) {
         console.error('LangFlow proxy error:', error);
