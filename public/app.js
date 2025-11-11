@@ -640,6 +640,77 @@ class TarotApp {
         let inConclusion = false;
         let currentCardIndex = -1;
 
+        // Spread position patterns to recognize structured positions
+        const positionPatterns = {
+            // Celtic Cross
+            'present': 'Hiện Tại',
+            'immediate challenge': 'Thách Thức Trước Mắt',
+            'crossing': 'Cản Trở',
+            'distant past': 'Quá Khứ Xa',
+            'recent past': 'Quá Khứ Gần',
+            'best outcome': 'Kết Quả Tốt Nhất',
+            'conscious': 'Ý Thức',
+            'immediate future': 'Tương Lai Gần',
+            'subconscious': 'Tiềm Thức',
+            'self': 'Bản Thân',
+            'attitude': 'Thái Độ',
+            'environment': 'Môi Trường',
+            'others': 'Người Khác',
+            'hopes and fears': 'Hy Vọng & Lo Sợ',
+            'outcome': 'Kết Quả',
+            
+            // Three Card
+            'past': 'Quá Khứ',
+            'future': 'Tương Lai',
+            
+            // Five Card
+            'situation': 'Tình Huống',
+            'challenge': 'Thách Thức',
+            
+            // Mind Body Spirit
+            'mind': 'Tâm Trí',
+            'body': 'Cơ Thể',
+            'spirit': 'Tinh Thần',
+            
+            // Relationship Spreads
+            'me': 'Bạn',
+            'them': 'Họ',
+            'the bridge': 'Cầu Nối',
+            'highest potential': 'Tiềm Năng Cao Nhất',
+            'lowest potential': 'Tiềm Năng Thấp Nhất',
+            'what love asks of me': 'Tình Yêu Yêu Cầu Gì',
+            'message from the universe': 'Thông Điệp Vũ Trụ',
+            'action to take': 'Hành Động',
+            'what to release': 'Điều Cần Buông Bỏ',
+            
+            // Release Retain
+            'release': 'Buông Bỏ',
+            'retain': 'Giữ Lại',
+            
+            // Asset Hindrance
+            'asset': 'Lợi Thế',
+            'hindrance': 'Trở Ngại',
+            
+            // Advice from Universe
+            'what you need to know': 'Điều Bạn Cần Biết',
+            'a new perspective': 'Góc Nhìn Mới',
+            
+            // Law of Attraction
+            'significator': 'Thẻ Đại Diện',
+            'your current energy': 'Năng Lượng Hiện Tại',
+            'the energy you need': 'Năng Lượng Cần Có',
+            'how to get into alignment': 'Cách Điều Chỉnh',
+            'letting go of the how': 'Buông Bỏ Cách Thức',
+            
+            // Making Decision
+            'option 1': 'Lựa Chọn 1',
+            'option 2': 'Lựa Chọn 2',
+            'option 1 energy': 'Năng Lượng Lựa Chọn 1',
+            'option 2 energy': 'Năng Lượng Lựa Chọn 2',
+            'fears': 'Lo Sợ',
+            'blessings': 'May Mắn'
+        };
+
         for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
@@ -655,7 +726,59 @@ class TarotApp {
                 continue;
             }
 
-            // Detect card lines with description using em dash: "Card Name (Orientation) — Description"
+            // Detect card with position number: "1: Card Name (Orientation) — Description"
+            const cardWithNumberMatch = trimmed.match(/^(\d+):\s*(.+?)\s*\(([^)]+)\)(?:\s*[—–]\s*(.+))?/);
+            if (cardWithNumberMatch) {
+                const posNum = cardWithNumberMatch[1];
+                const name = cardWithNumberMatch[2].trim();
+                const orientation = cardWithNumberMatch[3].trim();
+                const description = cardWithNumberMatch[4] ? cardWithNumberMatch[4].trim() : '';
+                
+                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                    result.cards.push({
+                        position: `Vị Trí ${posNum}`,
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        description: description
+                    });
+                    currentCardIndex = result.cards.length - 1;
+                    continue;
+                }
+            }
+
+            // Detect card with structured position: "Position: Card Name (Orientation) — Description"
+            const cardWithPosMatch = trimmed.match(/^([^:]+):\s*(.+?)\s*\(([^)]+)\)(?:\s*[—–]\s*(.+))?/);
+            if (cardWithPosMatch) {
+                const position = cardWithPosMatch[1].trim();
+                const name = cardWithPosMatch[2].trim();
+                const orientation = cardWithPosMatch[3].trim();
+                const description = cardWithPosMatch[4] ? cardWithPosMatch[4].trim() : '';
+                
+                // Extract position number if present (e.g., "1: RELEASE" -> "1")
+                const posNumberMatch = position.match(/^(\d+):\s*(.+)/);
+                let displayPosition = position;
+                
+                if (posNumberMatch) {
+                    const num = posNumberMatch[1];
+                    const posName = posNumberMatch[2].trim().toLowerCase();
+                    const translatedPos = positionPatterns[posName] || posNumberMatch[2].trim();
+                    displayPosition = `${num}: ${translatedPos}`;
+                }
+                
+                // Check if position looks like a card position (not a section title)
+                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                    result.cards.push({
+                        position: displayPosition,
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        description: description
+                    });
+                    currentCardIndex = result.cards.length - 1;
+                    continue;
+                }
+            }
+
+            // Detect card with description using em dash: "Card Name (Orientation) — Description"
             const cardWithDescMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)\s*[—–]\s*(.+)/u);
             if (cardWithDescMatch) {
                 const name = cardWithDescMatch[1].trim();
@@ -666,27 +789,6 @@ class TarotApp {
                 if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
                         position: this.getCardPosition(result.cards.length),
-                        name: name,
-                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
-                        description: description
-                    });
-                    currentCardIndex = result.cards.length - 1;
-                    continue;
-                }
-            }
-
-            // Detect card lines with colon: "Position: Card Name (Orientation) — Description"
-            const cardWithPosMatch = trimmed.match(/^([^:]+):\s*(.+?)\s*\(([^)]+)\)(?:\s*[—–]\s*(.+))?/);
-            if (cardWithPosMatch) {
-                const position = cardWithPosMatch[1].trim();
-                const name = cardWithPosMatch[2].trim();
-                const orientation = cardWithPosMatch[3].trim();
-                const description = cardWithPosMatch[4] ? cardWithPosMatch[4].trim() : '';
-                
-                // Check if position looks like a card position (not a section title)
-                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
-                    result.cards.push({
-                        position: position,
                         name: name,
                         orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
                         description: description
@@ -733,7 +835,7 @@ class TarotApp {
                 continue;
             }
 
-            // Detect section with em dash
+            // Detect section with em dash (but not card lines)
             if (trimmed.includes('—') && !trimmed.match(/\([^)]+\)/)) {
                 const parts = trimmed.split('—');
                 if (parts.length >= 2) {
@@ -764,19 +866,96 @@ class TarotApp {
     }
 
     getCardPosition(index) {
-        const positions = {
-            0: 'Lá Bài 1',
-            1: 'Lá Bài 2',
-            2: 'Lá Bài 3',
-            3: 'Lá Bài 4',
-            4: 'Lá Bài 5',
-            5: 'Lá Bài 6',
-            6: 'Lá Bài 7',
-            7: 'Lá Bài 8',
-            8: 'Lá Bài 9',
-            9: 'Lá Bài 10'
+        // Map based on current spread type if available
+        const spreadPositions = {
+            'celtic-cross': [
+                '1: Hiện Tại',
+                '2: Thách Thức (Cản Trở)',
+                '3: Quá Khứ Xa',
+                '4: Quá Khứ Gần',
+                '5: Kết Quả Tốt Nhất',
+                '6: Tương Lai Gần',
+                '7: Bản Thân',
+                '8: Môi Trường',
+                '9: Hy Vọng & Lo Sợ',
+                '10: Kết Quả'
+            ],
+            'three': [
+                '1: Quá Khứ',
+                '2: Hiện Tại',
+                '3: Tương Lai'
+            ],
+            'past-present-future': [
+                '1: Quá Khứ',
+                '2: Hiện Tại',
+                '3: Tương Lai'
+            ],
+            'five': [
+                '1: Tình Huống',
+                '2: Thách Thức',
+                '3: Ý Thức',
+                '4: Tiềm Thức',
+                '5: Kết Quả'
+            ],
+            'mind-body-spirit': [
+                '1: Tâm Trí',
+                '2: Cơ Thể',
+                '3: Tinh Thần'
+            ],
+            'existing-relationship': [
+                '1: Bạn',
+                '2: Họ',
+                '3: Cầu Nối',
+                '4: Tiềm Năng Cao Nhất',
+                '5: Tiềm Năng Thấp Nhất'
+            ],
+            'potential-relationship': [
+                '1: Bạn',
+                '2: Tình Yêu Yêu Cầu',
+                '3: Thông Điệp Vũ Trụ',
+                '4: Hành Động',
+                '5: Điều Cần Buông Bỏ'
+            ],
+            'release-retain': [
+                '1: Buông Bỏ',
+                '2: Giữ Lại'
+            ],
+            'asset-hindrance': [
+                '1: Lợi Thế',
+                '2: Trở Ngại'
+            ],
+            'advice-universe': [
+                '1: Điều Bạn Cần Biết',
+                '2: Góc Nhìn Mới',
+                '3: Hành Động'
+            ],
+            'law-of-attraction': [
+                '1: Thẻ Đại Diện',
+                '2: Năng Lượng Hiện Tại',
+                '3: Năng Lượng Cần Có',
+                '4: Cách Điều Chỉnh',
+                '5: Buông Bỏ Cách Thức'
+            ],
+            'making-decision': [
+                '1: Lựa Chọn 1',
+                '2: Lựa Chọn 2',
+                '3: Năng Lượng LC1',
+                '4: Năng Lượng LC2',
+                '5: Lo Sợ',
+                '6: May Mắn'
+            ]
         };
-        return positions[index] || `Lá Bài ${index + 1}`;
+
+        // Try to get position from current spread type
+        if (this.currentSpread && spreadPositions[this.currentSpread]) {
+            const positions = spreadPositions[this.currentSpread];
+            if (index < positions.length) {
+                return positions[index];
+            }
+        }
+
+        // Default fallback
+        return `Lá Bài ${index + 1}`;
     }
 
     displayCards(cards) {
