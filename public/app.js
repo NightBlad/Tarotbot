@@ -574,11 +574,22 @@ class TarotApp {
     }
 
     displayResults(text) {
+        console.log('=== displayResults ===');
+        console.log('Raw text length:', text.length);
+        console.log('Raw text preview:', text.substring(0, 500));
+        
         // Extract image URLs from text
         const { cleanText, imageUrls } = this.extractImageUrls(text);
+        console.log('Extracted image URLs:', imageUrls);
+        console.log('Clean text preview:', cleanText.substring(0, 500));
         
         // Parse the cleaned text content
         const parsed = this.parseReadingText(cleanText);
+        console.log('Parsed result:', parsed);
+        console.log('Number of cards found:', parsed.cards.length);
+        console.log('Cards:', parsed.cards);
+        console.log('Sections:', parsed.sections);
+        console.log('Conclusion length:', parsed.conclusion.length);
         
         // Add extracted images to cards
         if (imageUrls.length > 0) {
@@ -628,6 +639,9 @@ class TarotApp {
     }
 
     parseReadingText(text) {
+        console.log('=== parseReadingText ===');
+        console.log('Input text:', text);
+        
         const result = {
             title: '',
             cards: [],
@@ -636,6 +650,8 @@ class TarotApp {
         };
 
         const lines = text.split('\n');
+        console.log('Total lines:', lines.length);
+        
         let currentSection = null;
         let inConclusion = false;
         let currentCardIndex = -1;
@@ -715,14 +731,18 @@ class TarotApp {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
+            console.log('Processing line:', trimmed);
+
             // Skip emoji-only lines or decorative elements
             if (/^[\u{1F300}-\u{1F9FF}]+$/u.test(trimmed)) {
+                console.log('  -> Skipped: emoji-only line');
                 continue;
             }
 
             // First non-emoji line is typically the title
             if (!result.title && trimmed.length < 150 && !trimmed.includes('(') && !trimmed.includes('—')) {
                 result.title = trimmed;
+                console.log('  -> Set as title:', result.title);
                 continue;
             }
 
@@ -734,6 +754,8 @@ class TarotApp {
                 const orientation = cardWithNumberMatch[3].trim();
                 const description = cardWithNumberMatch[4] ? cardWithNumberMatch[4].trim() : '';
                 
+                console.log('  -> Matched numbered card:', { posNum, name, orientation, description });
+                
                 if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
                         position: `Vị Trí ${posNum}`,
@@ -742,6 +764,7 @@ class TarotApp {
                         description: description
                     });
                     currentCardIndex = result.cards.length - 1;
+                    console.log('  -> Added card, currentCardIndex:', currentCardIndex);
                     continue;
                 }
             }
@@ -754,6 +777,8 @@ class TarotApp {
                 const orientation = cardWithPosMatch[3].trim();
                 const description = cardWithPosMatch[4] ? cardWithPosMatch[4].trim() : '';
                 
+                console.log('  -> Matched position card:', { position, name, orientation, description });
+                
                 // Extract position number if present (e.g., "1: RELEASE" -> "1")
                 const posNumberMatch = position.match(/^(\d+):\s*(.+)/);
                 let displayPosition = position;
@@ -763,18 +788,25 @@ class TarotApp {
                     const posName = posNumberMatch[2].trim().toLowerCase();
                     const translatedPos = positionPatterns[posName] || posNumberMatch[2].trim();
                     displayPosition = `${num}: ${translatedPos}`;
+                    console.log('  -> Translated position:', displayPosition);
                 }
                 
-                // Check if position looks like a card position (not a section title)
-                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                // Check if this looks like a card (not conclusion or section)
+                // Cards have specific orientation keywords
+                const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
+                
+                if (isCard && name.length < 80 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
                         position: displayPosition,
                         name: name,
-                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
                         description: description
                     });
                     currentCardIndex = result.cards.length - 1;
+                    console.log('  -> Added card, currentCardIndex:', currentCardIndex);
                     continue;
+                } else {
+                    console.log('  -> Not a card (isCard:', isCard, 'name.length:', name.length, ')');
                 }
             }
 
@@ -785,16 +817,24 @@ class TarotApp {
                 const orientation = cardWithDescMatch[2].trim();
                 const description = cardWithDescMatch[3].trim();
                 
+                console.log('  -> Matched em-dash card:', { name, orientation, description });
+                
+                // Check if orientation looks valid
+                const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
+                
                 // Only add if it looks like a card name (not too long)
-                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                if (isCard && name.length < 80 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
                         position: this.getCardPosition(result.cards.length),
                         name: name,
-                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
                         description: description
                     });
                     currentCardIndex = result.cards.length - 1;
+                    console.log('  -> Added card, currentCardIndex:', currentCardIndex);
                     continue;
+                } else {
+                    console.log('  -> Not a card (isCard:', isCard, 'name.length:', name.length, ')');
                 }
             }
 
@@ -804,16 +844,24 @@ class TarotApp {
                 const name = cardWithEmojiMatch[1].trim();
                 const orientation = cardWithEmojiMatch[2].trim();
                 
+                console.log('  -> Matched emoji card:', { name, orientation });
+                
+                // Check if orientation looks valid
+                const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
+                
                 // Only add if it looks like a card name (not a section title)
-                if (name.length < 50 && !name.toLowerCase().includes('kết luận')) {
+                if (isCard && name.length < 80 && !name.toLowerCase().includes('kết luận')) {
                     result.cards.push({
                         position: this.getCardPosition(result.cards.length),
                         name: name,
-                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright',
+                        orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
                         description: ''
                     });
                     currentCardIndex = result.cards.length - 1;
+                    console.log('  -> Added card, currentCardIndex:', currentCardIndex);
                     continue;
+                } else {
+                    console.log('  -> Not a card (isCard:', isCard, 'name.length:', name.length, ')');
                 }
             }
 
@@ -822,6 +870,7 @@ class TarotApp {
                 inConclusion = true;
                 currentSection = null;
                 currentCardIndex = -1;
+                console.log('  -> Entering conclusion section');
                 const match = trimmed.match(/kết luận[:\s]*(.*)/i);
                 if (match && match[1]) {
                     result.conclusion += match[1] + '\n';
@@ -831,6 +880,7 @@ class TarotApp {
 
             // If in conclusion, accumulate text
             if (inConclusion) {
+                console.log('  -> Adding to conclusion');
                 result.conclusion += trimmed + '\n';
                 continue;
             }
@@ -851,16 +901,26 @@ class TarotApp {
 
             // Add to current context (section, card description, or skip)
             if (currentSection) {
+                console.log('  -> Adding to section:', currentSection.title);
                 currentSection.content += ' ' + trimmed;
             } else if (currentCardIndex >= 0 && result.cards[currentCardIndex]) {
                 // Add to the current card's description
+                console.log('  -> Adding to card description, cardIndex:', currentCardIndex);
                 if (result.cards[currentCardIndex].description) {
                     result.cards[currentCardIndex].description += ' ' + trimmed;
                 } else {
                     result.cards[currentCardIndex].description = trimmed;
                 }
+            } else {
+                console.log('  -> Line not processed (no context)');
             }
         }
+
+        console.log('=== Final parsed result ===');
+        console.log('Title:', result.title);
+        console.log('Cards:', result.cards.length);
+        console.log('Sections:', result.sections.length);
+        console.log('Conclusion length:', result.conclusion.length);
 
         return result;
     }
