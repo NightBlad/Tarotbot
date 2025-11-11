@@ -574,8 +574,20 @@ class TarotApp {
     }
 
     displayResults(text) {
-        // Parse the text content
-        const parsed = this.parseReadingText(text);
+        // Extract image URLs from text
+        const { cleanText, imageUrls } = this.extractImageUrls(text);
+        
+        // Parse the cleaned text content
+        const parsed = this.parseReadingText(cleanText);
+        
+        // Add extracted images to cards
+        if (imageUrls.length > 0) {
+            imageUrls.forEach((url, index) => {
+                if (parsed.cards[index]) {
+                    parsed.cards[index].imageUrl = url;
+                }
+            });
+        }
         
         // Display cards
         this.displayCards(parsed.cards);
@@ -591,6 +603,28 @@ class TarotApp {
             behavior: 'smooth', 
             block: 'start' 
         });
+    }
+
+    extractImageUrls(text) {
+        // Regular expression to match image URLs (http/https)
+        const urlRegex = /(https?:\/\/[^\s]+\.(jpg|jpeg|png|gif|webp|svg))/gi;
+        const imageUrls = [];
+        let cleanText = text;
+        
+        // Extract all image URLs
+        const matches = text.match(urlRegex);
+        if (matches) {
+            matches.forEach(url => {
+                imageUrls.push(url);
+            });
+            
+            // Remove URLs from text
+            cleanText = text.replace(urlRegex, '').trim();
+            // Clean up extra whitespace
+            cleanText = cleanText.replace(/\s+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n');
+        }
+        
+        return { cleanText, imageUrls };
     }
 
     parseReadingText(text) {
@@ -609,10 +643,32 @@ class TarotApp {
             const trimmed = line.trim();
             if (!trimmed) continue;
 
+            // Skip emoji-only lines or decorative elements
+            if (/^[\u{1F300}-\u{1F9FF}]+$/u.test(trimmed)) {
+                continue;
+            }
+
             // First line is typically the title
             if (!result.title && trimmed.length < 100) {
                 result.title = trimmed;
                 continue;
+            }
+
+            // Detect card lines with emoji prefix (e.g., "🔹 The Hermit (Xuôi)")
+            const cardWithEmojiMatch = trimmed.match(/^[\u{1F300}-\u{1F9FF}\s]*(.+?)\s*\(([^)]+)\)/u);
+            if (cardWithEmojiMatch) {
+                const name = cardWithEmojiMatch[1].trim();
+                const orientation = cardWithEmojiMatch[2].trim();
+                
+                // Only add if it looks like a card name (not a section title)
+                if (name.length < 50) {
+                    result.cards.push({
+                        position: result.cards.length === 0 ? 'Card' : `Card ${result.cards.length + 1}`,
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') ? 'reversed' : 'upright'
+                    });
+                    continue;
+                }
             }
 
             // Detect card lines (pattern: "Position: Card Name (Orientation)")
@@ -630,8 +686,8 @@ class TarotApp {
                 continue;
             }
 
-            // Detect conclusion
-            if (trimmed.toLowerCase().includes('kết luận')) {
+            // Detect conclusion with emoji
+            if (trimmed.toLowerCase().includes('kết luận') || /^[\u{1F300}-\u{1F9FF}]+\s*kết luận/iu.test(trimmed)) {
                 inConclusion = true;
                 currentSection = null;
                 const match = trimmed.match(/kết luận[:\s]*(.*)/i);
@@ -663,6 +719,17 @@ class TarotApp {
             // Add to current section or create new one
             if (currentSection) {
                 currentSection.content += ' ' + trimmed;
+            } else {
+                // If we have cards but no sections yet, treat remaining text as content
+                if (result.cards.length > 0 && !trimmed.match(/^[\u{1F300}-\u{1F9FF}]+$/u)) {
+                    if (!currentSection) {
+                        currentSection = {
+                            title: 'Ý nghĩa',
+                            content: trimmed
+                        };
+                        result.sections.push(currentSection);
+                    }
+                }
             }
         }
 
@@ -682,8 +749,8 @@ class TarotApp {
             const cardEl = document.createElement('div');
             cardEl.className = 'tarot-card';
             
-            // Get card image URL (construct from card name or use placeholder)
-            const imageUrl = this.getCardImageUrl(card.name);
+            // Use extracted image URL if available, otherwise construct from card name
+            const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
             
             cardEl.innerHTML = `
                 <div class="card-image-wrapper">
