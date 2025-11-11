@@ -1155,87 +1155,26 @@ class TarotApp {
             return;
         }
 
-        // Use detailed layout for 1-2 cards with descriptions, grid for 3+ or no descriptions
-        const useDetailedLayout = cards.length <= 2 && cards.some(card => card.description);
-
+        // Display only card images, no text information
         cards.forEach((card, index) => {
-            if (useDetailedLayout) {
-                // Detailed card layout
-                const cardEl = document.createElement('div');
-                cardEl.className = 'tarot-card-detail';
-                
-                const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
-                
-                cardEl.innerHTML = `
-                    <div class="card-detail-container">
-                        <div class="card-detail-image">
-                            <div class="card-image-wrapper">
-                                <img 
-                                    src="${imageUrl}" 
-                                    alt="${card.name}" 
-                                    class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
-                                    onerror="this.src='https://via.placeholder.com/200x350/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
-                                >
-                            </div>
-                        </div>
-                        <div class="card-detail-info">
-                            <div class="card-detail-header">
-                                <h3 class="card-detail-name">${this.escapeHtml(card.name)}</h3>
-                                <span class="card-detail-orientation ${card.orientation}">${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'}</span>
-                            </div>
-                            <div class="card-detail-position">${this.escapeHtml(card.position)}</div>
-                            ${card.description ? `
-                                <div class="card-detail-description">
-                                    <p>${this.escapeHtml(card.description)}</p>
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-                
-                container.appendChild(cardEl);
-            } else {
-                // Grid card layout (compact for multiple cards)
-                const cardEl = document.createElement('div');
-                cardEl.className = 'tarot-card';
-                
-                const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
-                
-                cardEl.innerHTML = `
-                    <div class="card-image-wrapper">
-                        <img 
-                            src="${imageUrl}" 
-                            alt="${card.name}" 
-                            class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
-                            onerror="this.src='https://via.placeholder.com/180x300/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
-                        >
-                    </div>
-                    <div class="card-position">${this.escapeHtml(card.position)}</div>
-                    <div class="card-name">${this.escapeHtml(card.name)}</div>
-                    <div class="card-orientation ${card.orientation}">${card.orientation === 'reversed' ? '(Ngược)' : '(Xuôi)'}</div>
-                `;
-                
-                container.appendChild(cardEl);
-            }
+            const cardEl = document.createElement('div');
+            cardEl.className = 'tarot-card-image-only';
+            
+            const imageUrl = card.imageUrl || this.getCardImageUrl(card.name);
+            
+            cardEl.innerHTML = `
+                <div class="card-image-wrapper">
+                    <img 
+                        src="${imageUrl}" 
+                        alt="${card.name}" 
+                        class="card-image ${card.orientation === 'reversed' ? 'reversed' : ''}"
+                        onerror="this.src='https://via.placeholder.com/250x400/7B68EE/FFFFFF?text=${encodeURIComponent(card.name)}'"
+                    >
+                </div>
+            `;
+            
+            container.appendChild(cardEl);
         });
-
-        // If there are card descriptions in grid layout, show them as sections
-        if (!useDetailedLayout && cards.some(card => card.description)) {
-            cards.forEach(card => {
-                if (card.description) {
-                    const descEl = document.createElement('div');
-                    descEl.className = 'card-description-section';
-                    descEl.innerHTML = `
-                        <h4 class="card-desc-title">
-                            <span>🔹</span>
-                            ${this.escapeHtml(card.position)}: ${this.escapeHtml(card.name)} (${card.orientation === 'reversed' ? 'Ngược' : 'Xuôi'})
-                        </h4>
-                        <p class="card-desc-text">${this.escapeHtml(card.description)}</p>
-                    `;
-                    container.appendChild(descEl);
-                }
-            });
-        }
     }
 
     getCardImageUrl(cardName) {

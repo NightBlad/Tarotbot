@@ -422,9 +422,68 @@ body {
 /* ==================== CARDS DISPLAY ==================== */
 .cards-display {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 2rem;
     margin: 3rem 0;
+}
+
+/* Image-only card layout (simplified) */
+.tarot-card-image-only {
+    position: relative;
+    width: 250px;
+    transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    animation: cardReveal 0.8s ease-out backwards;
+}
+
+.tarot-card-image-only:nth-child(1) { animation-delay: 0.1s; }
+.tarot-card-image-only:nth-child(2) { animation-delay: 0.2s; }
+.tarot-card-image-only:nth-child(3) { animation-delay: 0.3s; }
+.tarot-card-image-only:nth-child(4) { animation-delay: 0.4s; }
+.tarot-card-image-only:nth-child(5) { animation-delay: 0.5s; }
+.tarot-card-image-only:nth-child(6) { animation-delay: 0.6s; }
+.tarot-card-image-only:nth-child(7) { animation-delay: 0.7s; }
+.tarot-card-image-only:nth-child(8) { animation-delay: 0.8s; }
+.tarot-card-image-only:nth-child(9) { animation-delay: 0.9s; }
+.tarot-card-image-only:nth-child(10) { animation-delay: 1s; }
+
+.tarot-card-image-only:hover {
+    transform: translateY(-15px) scale(1.05);
+    z-index: 10;
+}
+
+.tarot-card-image-only .card-image-wrapper {
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6),
+                0 0 30px rgba(123, 104, 238, 0.4);
+    border: 3px solid var(--accent-color);
+    transition: all 0.3s ease;
+}
+
+.tarot-card-image-only:hover .card-image-wrapper {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8),
+                0 0 50px rgba(123, 104, 238, 0.6);
+    border-color: var(--primary-color);
+}
+
+.tarot-card-image-only .card-image-wrapper::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, transparent, var(--glow-color));
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 1;
+}
+
+.tarot-card-image-only:hover .card-image-wrapper::before {
+    opacity: 1;
 }
 
 /* When there are 1-2 cards, show as detailed cards */
