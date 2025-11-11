@@ -631,9 +631,22 @@ class TarotApp {
             
             // Remove URLs from text
             cleanText = text.replace(urlRegex, '').trim();
-            // Clean up extra whitespace
-            cleanText = cleanText.replace(/\s+/g, ' ').replace(/\s+\n/g, '\n').replace(/\n\s+/g, '\n');
         }
+        
+        // Normalize text: add line breaks before card patterns and conclusion
+        cleanText = cleanText
+            // Add newline before card patterns (number: card or position: card)
+            .replace(/(\d+:\s*[A-Z][^(]+\([^)]+\))/g, '\n$1')
+            // Add newline before "Kết luận:"
+            .replace(/(Kết luận:)/gi, '\n$1')
+            // Add newline before sections with em-dash
+            .replace(/([^\n])\s+([A-Z][^—]+—)/g, '$1\n$2')
+            // Clean up extra whitespace
+            .replace(/\s+/g, ' ')
+            .replace(/\s*\n\s*/g, '\n')
+            .trim();
+        
+        console.log('After normalization:', cleanText);
         
         return { cleanText, imageUrls };
     }
@@ -726,6 +739,63 @@ class TarotApp {
             'fears': 'Lo Sợ',
             'blessings': 'May Mắn'
         };
+
+        // If only 1 line, try to extract cards using global regex first
+        if (lines.length === 1) {
+            console.log('Single line detected, using global regex extraction');
+            const singleLine = lines[0];
+            
+            // Extract all card patterns from the line
+            // Pattern: Card Name (Orientation) — Description
+            const cardPattern = /([A-Z][^(]{3,60})\s*\(([^)]+)\)\s*(?:—|–)\s*([^.]+(?:\.[^.]*?){0,2}\.)/g;
+            let match;
+            
+            while ((match = cardPattern.exec(singleLine)) !== null) {
+                const name = match[1].trim();
+                const orientation = match[2].trim();
+                const description = match[3].trim();
+                
+                console.log('Global regex matched card:', { name, orientation, description });
+                
+                // Validate it's a card
+                const isCard = orientation.toLowerCase().match(/xuôi|ngược|upright|reversed/);
+                const validName = !name.toLowerCase().includes('kết luận') && 
+                                 !name.toLowerCase().includes('trải bài') &&
+                                 name.length < 80;
+                
+                if (isCard && validName) {
+                    result.cards.push({
+                        position: this.getCardPosition(result.cards.length),
+                        name: name,
+                        orientation: orientation.toLowerCase().includes('ngược') || orientation.toLowerCase().includes('reversed') ? 'reversed' : 'upright',
+                        description: description
+                    });
+                    console.log('Added card via global regex:', name);
+                }
+            }
+            
+            // Extract conclusion
+            const conclusionMatch = singleLine.match(/Kết luận:\s*(.+)/i);
+            if (conclusionMatch) {
+                result.conclusion = conclusionMatch[1].trim();
+                console.log('Extracted conclusion:', result.conclusion.substring(0, 100));
+            }
+            
+            // Extract title (first sentence before card)
+            const titleMatch = singleLine.match(/^([^.]+\.)/);
+            if (titleMatch && !titleMatch[1].includes('(')) {
+                result.title = titleMatch[1].trim();
+                console.log('Extracted title:', result.title);
+            }
+            
+            console.log('=== Final parsed result (global regex) ===');
+            console.log('Title:', result.title);
+            console.log('Cards:', result.cards.length);
+            console.log('Sections:', result.sections.length);
+            console.log('Conclusion length:', result.conclusion.length);
+            
+            return result;
+        }
 
         for (const line of lines) {
             const trimmed = line.trim();
