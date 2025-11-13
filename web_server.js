@@ -15,6 +15,16 @@ const fetch = globalThis.fetch || require('node-fetch');
 const app = express();
 const PORT = process.env.PORT || process.env.WEB_PORT || 8080;
 
+// ==================== PROXY CONFIGURATION ====================
+// IMPORTANT: Enable trust proxy for Render.com, Heroku, etc.
+// This allows express-rate-limit to correctly identify users behind reverse proxies
+if (process.env.NODE_ENV === 'production') {
+    app.set('trust proxy', 1); // Trust first proxy (Render, Heroku, etc.)
+} else {
+    // In development, trust proxies if X-Forwarded-For header is expected
+    app.set('trust proxy', true);
+}
+
 // ==================== MULTI-USER OPTIMIZATION ====================
 
 // 1. Session Management - Track individual user sessions
