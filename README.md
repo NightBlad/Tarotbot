@@ -1,15 +1,44 @@
 # TarotBot API
 
-Lightweight Express JSON API for tarot spreads based on the local `card_data.js`.
+Lightweight Express JSON API for tarot spreads với tính năng multi-user optimization.
 
-Start server:
+## 🚀 Quick Start
 
 ```powershell
 npm install
 npm start
 ```
 
-Endpoints (GET):
+Server sẽ chạy tại http://localhost:8080 với các tính năng:
+
+✅ **Session Management** - Quản lý phiên người dùng  
+✅ **Rate Limiting** - Giới hạn request (30 req/min)  
+✅ **Request Queuing** - Xếp hàng để tránh quá tải  
+✅ **Response Caching** - Cache kết quả bói bài  
+✅ **Performance Monitoring** - Theo dõi metrics real-time  
+
+## 📊 Monitoring
+
+Truy cập `/api/status` để xem metrics server:
+
+```json
+{
+  "status": "healthy",
+  "uptime": 3600,
+  "stats": {
+    "totalRequests": 1250,
+    "cacheHitRate": "36.00%",
+    "activeUsers": 23,
+    "queueLength": 2
+  }
+}
+```
+
+## 🎯 Multi-User Features
+
+Xem chi tiết tại [MULTI_USER_GUIDE.md](./MULTI_USER_GUIDE.md)
+
+## API Endpoints
 - GET /draw/one — single random card
 - GET /draw/three — past/present/future
 - GET /draw/five — predefined 5-card spread

@@ -9,6 +9,8 @@ class TarotApp {
         this.history = [];
         this.musicEnabled = false;
         this.theme = 'dark';
+        this.serverStatus = null;
+        this.statusCheckInterval = null;
         
         this.init();
     }
@@ -19,6 +21,41 @@ class TarotApp {
         this.loadTheme();
         this.attachEventListeners();
         this.loadCardSuggestions();
+        this.startStatusCheck();
+    }
+    
+    startStatusCheck() {
+        // Check server status every 30 seconds
+        this.checkServerStatus();
+        this.statusCheckInterval = setInterval(() => {
+            this.checkServerStatus();
+        }, 30000);
+    }
+    
+    async checkServerStatus() {
+        try {
+            const response = await fetch('/api/status');
+            if (response.ok) {
+                this.serverStatus = await response.json();
+                this.updateStatusUI();
+            }
+        } catch (e) {
+            console.warn('Could not fetch server status:', e.message);
+        }
+    }
+    
+    updateStatusUI() {
+        // Update queue info if shown
+        const queueInfo = document.getElementById('queueInfo');
+        if (queueInfo && this.serverStatus) {
+            const { queueLength, activeUsers } = this.serverStatus.stats;
+            if (queueLength > 0) {
+                queueInfo.textContent = `⏳ Có ${queueLength} người đang chờ. Khoảng ${queueLength * 10}s nữa đến lượt bạn...`;
+                queueInfo.style.display = 'block';
+            } else {
+                queueInfo.style.display = 'none';
+            }
+        }
     }
     
     loadHistory() {
@@ -475,6 +512,13 @@ class TarotApp {
         document.getElementById('shuffleAnimation').style.display = 'none';
         document.getElementById('loadingState').style.display = 'block';
         
+        // Show queue info
+        const queueInfo = document.getElementById('queueInfo');
+        if (queueInfo) {
+            queueInfo.style.display = 'block';
+            this.updateStatusUI();
+        }
+        
         try {
             // First, draw cards from Tarot API to get images
             const cardData = await this.drawCards(this.currentSpread);
@@ -497,9 +541,24 @@ class TarotApp {
             this.displayResults(result, cardData);
         } catch (error) {
             console.error('Reading error:', error);
-            alert('Có lỗi xảy ra khi bói bài. Vui lòng thử lại.');
+            
+            // Show friendly error message
+            let errorMessage = 'Có lỗi xảy ra khi bói bài. Vui lòng thử lại.';
+            
+            if (error.message.includes('429') || error.message.includes('Too Many Requests')) {
+                errorMessage = '⏸️ Quá nhiều người đang sử dụng. Vui lòng đợi 1 phút và thử lại.';
+            } else if (error.message.includes('504') || error.message.includes('timeout')) {
+                errorMessage = '⏱️ Yêu cầu xử lý quá lâu. Vui lòng thử lại sau 30 giây.';
+            } else if (error.message.includes('Network')) {
+                errorMessage = '🌐 Lỗi kết nối mạng. Vui lòng kiểm tra internet và thử lại.';
+            }
+            
+            alert(errorMessage);
         } finally {
             document.getElementById('loadingState').style.display = 'none';
+            if (queueInfo) {
+                queueInfo.style.display = 'none';
+            }
         }
     }
 

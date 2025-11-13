@@ -17,7 +17,11 @@
     "discord.js": "^14.13.0",
     "dotenv": "^16.0.3",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.18.2",
+    "lru-cache": "^11.2.2",
     "node-fetch": "^2.6.7",
-    "node-html-to-image": "^5.0.0"
+    "node-html-to-image": "^5.0.0",
+    "p-queue": "^9.0.0"
   }
 }
