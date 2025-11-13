@@ -63,6 +63,10 @@ const apiLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // Disable validation since we already set trust proxy
+    validate: {
+        xForwardedForHeader: false
+    },
     handler: (req, res) => {
         res.status(429).json({
             error: 'Quá nhiều yêu cầu từ IP này. Vui lòng thử lại sau.',
@@ -80,6 +84,10 @@ const langflowLimiter = rateLimit({
         retryAfter: 60
     },
     skipSuccessfulRequests: false,
+    // Disable validation since we already set trust proxy
+    validate: {
+        xForwardedForHeader: false
+    },
     handler: (req, res) => {
         res.status(429).json({
             error: 'Quá nhiều yêu cầu bói bài. Vui lòng đợi một chút.',
